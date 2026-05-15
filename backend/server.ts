@@ -1,13 +1,20 @@
 import { MCPClient } from "./index.ts";
-import { OpenAI } from "openai";
 async function main() {
   const mcpClient = new MCPClient();
   try {
     await mcpClient.connectToServers([
-      { name: "fs", scriptPath: "https://mcp.li.quest/mcp" },
-      //   { name: "db", scriptPath: "./db-server.py" },
+      {
+        name: "lifi",
+        url: "https://mcp.li.quest/mcp",
+        headers: { "X-LiFi-Api-Key": process.env.LIFI_API_KEY ?? "" },
+      },
+      {
+        name: "defi-yield",
+        command: "python",
+        args: ["-m", "defi_yield_mcp"],
+      },
     ]);
-    await mcpClient.chatMessage("find me users created last week");
+    await mcpClient.chatMessage("i want to swap 10 usdc to weth from ethereum to arbitrum get me the route here is my wallet address 0x748DE9BFBDD651bD461a1cf95F9D8c6F7ab93B06");
   } catch (e) {
     console.error("Error:", e);
     await mcpClient.cleanup();

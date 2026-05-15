@@ -1,22 +1,22 @@
 import { OpenAI } from "openai";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type {
   FunctionTool,
   ResponseFunctionToolCall,
 } from "openai/resources/responses/responses";
-import type { ResponseInputItem } from "openai/resources/responses/responses";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_API_KEY) {
-  throw new Error("OPENAI_API_KEY is not set");
+const AI_KEY = process.env.AI_KEY;
+if (!AI_KEY) {
+  throw new Error("AI_KEY is not set");
 }
 const openai = new OpenAI({
   baseURL: process.env.AI_URL,
-  apiKey: process.env.AI_KEY,
+  apiKey: AI_KEY,
 });
 
 export class MCPClient {
@@ -25,36 +25,38 @@ export class MCPClient {
   private toolToServer: Map<string, string> = new Map();
 
   async connectToServers(
-    configs: { name: string; scriptPath: string }[],
+    configs: (
+      | { name: string; url: string; headers?: Record<string, string> }
+      | { name: string; command: string; args: string[] }
+    )[],
   ) {
     const results = await Promise.all(
-      configs.map(async ({ name, scriptPath }) => {
-        const isJs = scriptPath.endsWith(".js");
-        const isPy = scriptPath.endsWith(".py");
-        if (!isJs && !isPy) {
-          throw new Error(`Server "${name}" script must be a .js or .py file`);
-        }
-        const command = isPy
-          ? process.platform === "win32"
-            ? "python"
-            : "python3"
-          : process.execPath;
+      configs.map(async (cfg) => {
+        let transport;
 
-        const transport = new StdioClientTransport({
-          command,
-          args: [scriptPath],
-        });
+        if ("url" in cfg) {
+          transport = new StreamableHTTPClientTransport(new URL(cfg.url), {
+            requestInit: cfg.headers ? { headers: cfg.headers } : undefined,
+          });
+        } else {
+          transport = new StdioClientTransport({
+            command: cfg.command,
+            args: cfg.args,
+          });
+        }
+
         const client = new Client({ name: `mcp-${name}`, version: "1.0.0" });
         await client.connect(transport);
 
         const toolsResult = await client.listTools();
+        // console.log(`Server "${name}" offers tools:`, toolsResult.tools.map((t) => t.name));
         const serverTools = toolsResult.tools.map((tool) => {
           return {
             type: "function" as const,
             name: tool.name,
             description: tool.description,
             parameters: tool.inputSchema,
-            strict: true,
+            strict: false,
           };
         });
 
@@ -77,21 +79,14 @@ export class MCPClient {
 
   async processQuery(query: string) {
     const maxIterations = 10;
-    let input: ResponseInputItem[] = [{ role: "user", content: query }];
+
+    let response = await openai.responses.create({
+      model: process.env.AI_MODEL,
+      input: [{ role: "user" as const, content: query }],
+      tools: this.tools,
+    });
 
     for (let i = 0; i < maxIterations; i++) {
-      let response;
-      try {
-        response = await openai.responses.create({
-          model: process.env.AI_MODEL,
-          input,
-          tools: this.tools,
-        });
-      } catch (err) {
-        console.error("OpenAI API error:", err);
-        return "Retry... Aurum AI Provider Error";
-      }
-
       const toolCalls = response.output.filter(
         (item): item is ResponseFunctionToolCall =>
           item.type === "function_call",
@@ -105,40 +100,32 @@ export class MCPClient {
 
       const results = await Promise.all(
         toolCalls.map(async (tc) => {
-          const serverName = this.toolToServer.get(tc.name);
-          const client = serverName ? this.servers.get(serverName) : undefined;
-
+          const client = this.servers.get(this.toolToServer.get(tc.name) ?? "");
           if (!client) {
-            console.error(`No server found for tool: ${tc.name}`);
             return {
+              type: "function_call_output" as const,
               call_id: tc.call_id,
-              output: JSON.stringify({ error: `No server found for tool: ${tc.name}` }),
+              output: JSON.stringify({ error: `No server for tool: ${tc.name}` }),
             };
           }
-
           let args: Record<string, unknown>;
-          try {
-            args = JSON.parse(tc.arguments);
-          } catch {
-            console.error("Failed to parse arguments for:", tc.name);
+          try { args = JSON.parse(tc.arguments); } catch {
             return {
+              type: "function_call_output" as const,
               call_id: tc.call_id,
               output: JSON.stringify({ error: "Failed to parse arguments" }),
             };
           }
-
           try {
-            const result = await client.callTool({
-              name: tc.name,
-              arguments: args,
-            });
+            const result = await client.callTool({ name: tc.name, arguments: args });
             return {
+              type: "function_call_output" as const,
               call_id: tc.call_id,
               output: JSON.stringify(result),
             };
           } catch (err) {
-            console.error(`Tool ${tc.name} failed:`, err);
             return {
+              type: "function_call_output" as const,
               call_id: tc.call_id,
               output: JSON.stringify({ error: String(err) }),
             };
@@ -146,15 +133,16 @@ export class MCPClient {
         }),
       );
 
-      input = results.map((r) => ({
-        type: "function_call_output" as const,
-        call_id: r.call_id,
-        output: r.output,
-      }));
+      response = await openai.responses.create({
+        model: process.env.AI_MODEL,
+        previous_response_id: response.id,
+        input: results,
+        tools: this.tools,
+      });
     }
 
     console.warn("Max iterations reached without final answer.");
-    return "Max iterations reached without final answer.";
+    return response.output_text || "Max iterations reached without final answer.";
   }
 
   async chatMessage(message: string) {
