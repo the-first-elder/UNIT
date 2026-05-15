@@ -35,8 +35,14 @@ export class MCPClient {
         let transport;
 
         if ("url" in cfg) {
+          const filteredHeaders: Record<string, string> = {};
+          if (cfg.headers) {
+            for (const [k, v] of Object.entries(cfg.headers)) {
+              if (v) filteredHeaders[k] = v;
+            }
+          }
           transport = new StreamableHTTPClientTransport(new URL(cfg.url), {
-            requestInit: cfg.headers ? { headers: cfg.headers } : undefined,
+            requestInit: Object.keys(filteredHeaders).length > 0 ? { headers: filteredHeaders } : undefined,
           });
         } else {
           transport = new StdioClientTransport({
@@ -45,11 +51,11 @@ export class MCPClient {
           });
         }
 
-        const client = new Client({ name: `mcp-${name}`, version: "1.0.0" });
+        const client = new Client({ name: `mcp-${cfg.name}`, version: "1.0.0" });
         await client.connect(transport);
 
         const toolsResult = await client.listTools();
-        // console.log(`Server "${name}" offers tools:`, toolsResult.tools.map((t) => t.name));
+        // console.log(`Server "${cfg.name}" offers tools:`, toolsResult.tools.map((t) => t.name));
         const serverTools = toolsResult.tools.map((tool) => {
           return {
             type: "function" as const,
@@ -60,7 +66,7 @@ export class MCPClient {
           };
         });
 
-        return { name, client, serverTools };
+        return { name: cfg.name, client, serverTools };
       }),
     );
 
@@ -87,6 +93,9 @@ export class MCPClient {
     });
 
     for (let i = 0; i < maxIterations; i++) {
+      console.log(`\n--- Iteration ${i} ---`);
+      console.log("Output items:", response.output.map((o) => o.type));
+
       const toolCalls = response.output.filter(
         (item): item is ResponseFunctionToolCall =>
           item.type === "function_call",
@@ -94,9 +103,11 @@ export class MCPClient {
 
       if (toolCalls.length === 0) {
         const text = response.output_text;
-        if (text) console.log("Final Answer:", text);
+        console.log("Final Answer:", text);
         return text;
       }
+
+      console.log("Calling tools:", toolCalls.map((tc) => tc.name));
 
       const results = await Promise.all(
         toolCalls.map(async (tc) => {
