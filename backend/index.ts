@@ -7,6 +7,7 @@ import type {
   ResponseFunctionToolCall,
 } from "openai/resources/responses/responses";
 import dotenv from "dotenv";
+import { SYSTEM_PROMPT } from "./agent.js";
 
 dotenv.config();
 
@@ -18,6 +19,10 @@ const openai = new OpenAI({
   baseURL: process.env.AI_URL,
   apiKey: AI_KEY,
 });
+
+export type ServerConfig =
+  | { name: string; url: string; headers?: Record<string, string> }
+  | { name: string; command: string; args: string[] };
 
 export class MCPClient {
   private servers: Map<string, Client> = new Map();
@@ -42,7 +47,10 @@ export class MCPClient {
             }
           }
           transport = new StreamableHTTPClientTransport(new URL(cfg.url), {
-            requestInit: Object.keys(filteredHeaders).length > 0 ? { headers: filteredHeaders } : undefined,
+            requestInit:
+              Object.keys(filteredHeaders).length > 0
+                ? { headers: filteredHeaders }
+                : undefined,
           });
         } else {
           transport = new StdioClientTransport({
@@ -51,7 +59,10 @@ export class MCPClient {
           });
         }
 
-        const client = new Client({ name: `mcp-${cfg.name}`, version: "1.0.0" });
+        const client = new Client({
+          name: `mcp-${cfg.name}`,
+          version: "1.0.0",
+        });
         await client.connect(transport);
 
         const toolsResult = await client.listTools();
@@ -84,20 +95,31 @@ export class MCPClient {
   }
 
   async processQuery(query: string) {
-    const maxIterations = 10;
+    const maxIterations = parseInt(process.env.AI_MAX_ITERATIONS ?? "10", 10);
+    const systemMessages: any[] = [{ role: "system", content: SYSTEM_PROMPT }];
 
-    let response = await openai.responses.create({
-      model: process.env.AI_MODEL,
-      input: [{ role: "user" as const, content: query }],
-      tools: this.tools,
-    });
-
+    systemMessages.push({ role: "user" as const, content: query });
+    let response:
+      | (OpenAI.Responses.Response & {
+          _request_id?: string | null;
+        })
+      | undefined;
     for (let i = 0; i < maxIterations; i++) {
+      response = await openai.responses.create({
+        model: process.env.AI_MODEL,
+        input: systemMessages,
+        tools: this.tools,
+        // max_output_tokens: 500,
+      });
+
       console.log(`\n--- Iteration ${i} ---`);
-      console.log("Output items:", response.output.map((o) => o.type));
+      console.log(
+        "Output items:",
+        response.output.map((o: any) => o.type),
+      );
 
       const toolCalls = response.output.filter(
-        (item): item is ResponseFunctionToolCall =>
+        (item: any): item is ResponseFunctionToolCall =>
           item.type === "function_call",
       );
 
@@ -107,36 +129,46 @@ export class MCPClient {
         return text;
       }
 
-      console.log("Calling tools:", toolCalls.map((tc) => tc.name));
+      console.log(
+        "Calling tools:",
+        toolCalls.map((tc: any) => tc.name),
+      );
 
       const results = await Promise.all(
-        toolCalls.map(async (tc) => {
+        toolCalls.map(async (tc: any) => {
           const client = this.servers.get(this.toolToServer.get(tc.name) ?? "");
           if (!client) {
             return {
-              type: "function_call_output" as const,
+              tc: tc,
               call_id: tc.call_id,
-              output: JSON.stringify({ error: `No server for tool: ${tc.name}` }),
+              output: JSON.stringify({
+                error: `No server for tool: ${tc.name}`,
+              }),
             };
           }
           let args: Record<string, unknown>;
-          try { args = JSON.parse(tc.arguments); } catch {
+          try {
+            args = JSON.parse(tc.arguments);
+          } catch {
             return {
-              type: "function_call_output" as const,
+              tc: tc,
               call_id: tc.call_id,
               output: JSON.stringify({ error: "Failed to parse arguments" }),
             };
           }
           try {
-            const result = await client.callTool({ name: tc.name, arguments: args });
+            const result = await client.callTool({
+              name: tc.name,
+              arguments: args,
+            });
             return {
-              type: "function_call_output" as const,
+              tc: tc,
               call_id: tc.call_id,
               output: JSON.stringify(result),
             };
           } catch (err) {
             return {
-              type: "function_call_output" as const,
+              tc: tc,
               call_id: tc.call_id,
               output: JSON.stringify({ error: String(err) }),
             };
@@ -144,16 +176,28 @@ export class MCPClient {
         }),
       );
 
-      response = await openai.responses.create({
-        model: process.env.AI_MODEL,
-        previous_response_id: response.id,
-        input: results,
-        tools: this.tools,
-      });
+      for (const r of results) {
+        // console.log(`Tool "${r.call_id}" output:`, r.tc);
+        systemMessages.push(r.tc);
+        systemMessages.push({
+          type: "function_call_output",
+          call_id: r.call_id,
+          output: JSON.stringify(r.output),
+        });
+      }
+
+      // response = await openai.responses.create({
+      //   model: process.env.AI_MODEL,
+      //   input: systemMessages,
+      //   tools: this.tools,
+      //   max_output_tokens: 500,
+      // });
     }
 
     console.warn("Max iterations reached without final answer.");
-    return response.output_text || "Max iterations reached without final answer.";
+    return (
+      response.output_text || "Max iterations reached without final answer."
+    );
   }
 
   async chatMessage(message: string) {
@@ -161,8 +205,6 @@ export class MCPClient {
   }
 
   async cleanup() {
-    await Promise.all(
-      Array.from(this.servers.values()).map((c) => c.close()),
-    );
+    await Promise.all(Array.from(this.servers.values()).map((c) => c.close()));
   }
 }
