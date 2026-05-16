@@ -109,7 +109,7 @@ export class MCPClient {
         model: process.env.AI_MODEL,
         input: systemMessages,
         tools: this.tools,
-        // max_output_tokens: 500,
+        // max_output_tokens: 4000,
       });
 
       console.log(`\n--- Iteration ${i} ---`);
@@ -182,21 +182,21 @@ export class MCPClient {
         systemMessages.push({
           type: "function_call_output",
           call_id: r.call_id,
-          output: JSON.stringify(r.output),
+          output: r.output,
         });
       }
 
-      // response = await openai.responses.create({
-      //   model: process.env.AI_MODEL,
-      //   input: systemMessages,
-      //   tools: this.tools,
-      //   max_output_tokens: 500,
-      // });
+      //   response = await openai.responses.create({
+      //     model: process.env.AI_MODEL,
+      //     input: systemMessages,
+      //     tools: this.tools,
+      //     max_output_tokens: 4000,
+      //   });
     }
 
     console.warn("Max iterations reached without final answer.");
     return (
-      response.output_text || "Max iterations reached without final answer."
+      response!.output_text || "Max iterations reached without final answer."
     );
   }
 
@@ -206,5 +206,9 @@ export class MCPClient {
 
   async cleanup() {
     await Promise.all(Array.from(this.servers.values()).map((c) => c.close()));
+  }
+
+  getServer(name: string): Client | undefined {
+    return this.servers.get(name);
   }
 }
