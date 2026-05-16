@@ -67,15 +67,18 @@ export class MCPClient {
 
         const toolsResult = await client.listTools();
         // console.log(`Server "${cfg.name}" offers tools:`, toolsResult.tools.map((t) => t.name));
-        const serverTools = toolsResult.tools.map((tool) => {
-          return {
-            type: "function" as const,
-            name: tool.name,
-            description: tool.description,
-            parameters: tool.inputSchema,
-            strict: false,
-          };
-        });
+        const blockedTools = new Set(["get-earn-vaults", "get-earn-vault", "get-earn-portfolio", "get-earn-chains", "get-earn-protocols"]);
+        const serverTools = toolsResult.tools
+          .filter((tool) => !blockedTools.has(tool.name))
+          .map((tool) => {
+            return {
+              type: "function" as const,
+              name: tool.name,
+              description: tool.description,
+              parameters: tool.inputSchema,
+              strict: false,
+            };
+          });
 
         return { name: cfg.name, client, serverTools };
       }),
@@ -96,7 +99,7 @@ export class MCPClient {
 
   async processQuery(query: string) {
     const maxIterations = parseInt(process.env.AI_MAX_ITERATIONS ?? "10", 10);
-    const systemMessages: any[] = [{ role: "system", content: SYSTEM_PROMPT }];
+    let systemMessages: any[] = [{ role: "system", content: SYSTEM_PROMPT }];
 
     systemMessages.push({ role: "user" as const, content: query });
     let response:
@@ -109,7 +112,9 @@ export class MCPClient {
         model: process.env.AI_MODEL,
         input: systemMessages,
         tools: this.tools,
-        // max_output_tokens: 4000,
+        context_management: [{ type: "compaction", compact_threshold: 100000 }],
+        // store: false,
+        // ...(response ? { previous_response_id: response.id } : {}),
       });
 
       console.log(`\n--- Iteration ${i} ---`);
@@ -195,6 +200,7 @@ export class MCPClient {
     }
 
     console.warn("Max iterations reached without final answer.");
+    systemMessages = [];
     return (
       response!.output_text || "Max iterations reached without final answer."
     );

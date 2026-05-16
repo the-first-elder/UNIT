@@ -1,4 +1,4 @@
-import { encodeFunctionData, isAddress, type Hex } from "viem";
+import { encodeFunctionData, getAddress, isAddress, type Hex } from "viem";
 
 const erc20Abi = [
   {
@@ -200,7 +200,7 @@ function isValidEvmAddress(v: unknown): v is Hex {
 }
 
 export function resolveAddress(addr: string): Hex {
-  if (isValidEvmAddress(addr)) return addr;
+  if (isValidEvmAddress(addr)) return getAddress(addr);
   const resolved = KNOWN_ADDRESSES[addr] ?? KNOWN_ADDRESSES[addr.replace(/[{}]/g, "")];
   if (resolved) return resolved;
   throw new Error(`Unknown address: ${addr}`);
