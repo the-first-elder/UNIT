@@ -208,27 +208,32 @@ async function encodeSteps(
     if (o.type === "lifi" && o.action === "buy" && o.fromToken && o.toToken && o.fromAmount && userAddress) {
         try {
           const lifiClient = mcpClient.getServer("lifi");
-          const parsedDesc = (typeof o.description === "string" ? o.description.match(/Swap\s+(\d+(?:\.\d+)?)\s*(\w+)\s+for\s+(\w+)/i) : null) as RegExpMatchArray | null;
-          const fromAmount = (o.fromAmount as string) || (parsedDesc ? String(Number(parsedDesc[1]) * 1_000_000) : "1000000");
-          const fromSymbol = (o.fromToken as string) || (parsedDesc ? parsedDesc[2] : "USDC");
-          const toSymbol = (o.toToken as string) || (parsedDesc ? parsedDesc[3] : "ETH");
+          const fromSymbol = o.fromToken as string;
+          const toSymbol = o.toToken as string;
+          const fromAmount = o.fromAmount as string;
 
-          const fromTokenResult = await lifiClient?.callTool({ name: "get-token", arguments: { chain: "1", token: fromSymbol } });
-          const toTokenResult = await lifiClient?.callTool({ name: "get-token", arguments: { chain: "1", token: toSymbol } });
-          const fromContent = ((fromTokenResult?.content as Array<{ text?: string }> | undefined) || []).map((c: { text?: string }) => c.text).filter(Boolean).join("\n");
-          const toContent = ((toTokenResult?.content as Array<{ text?: string }> | undefined) || []).map((c: { text?: string }) => c.text).filter(Boolean).join("\n");
-          const fromTokenData = JSON.parse(fromContent);
-          const toTokenData = JSON.parse(toContent);
-          const fromAddr = fromTokenData.address || (Array.isArray(fromTokenData.tokens?.["1"]) ? fromTokenData.tokens["1"].find((t: { symbol: string }) => t.symbol === fromSymbol)?.address : null);
-          const toAddr = toTokenData.address || (Array.isArray(toTokenData.tokens?.["1"]) ? toTokenData.tokens["1"].find((t: { symbol: string }) => t.symbol === toSymbol)?.address : null);
-          if (fromAddr && toAddr) {
-            const quoteResult = await lifiClient?.callTool({ name: "get-quote", arguments: { fromChain: "1", toChain: "1", fromToken: fromAddr, toToken: toAddr, fromAmount, fromAddress: userAddress } });
-            const quoteContent = ((quoteResult?.content as Array<{ text?: string }> | undefined) || []).map((c: { text?: string }) => c.text).filter(Boolean).join("\n");
-            const quoteData = JSON.parse(quoteContent);
-            const txReq = quoteData.transactionRequest || quoteData.estimate?.transactionRequest;
-            if (txReq) {
-              o.tx = { to: txReq.to, data: txReq.data, value: txReq.value || "0x0", chainId: txReq.chainId || 1 };
+          const safeParseTokenResult = async (symbol: string): Promise<string | null> => {
+            const res = await lifiClient?.callTool({ name: "get-token", arguments: { chain: "1", token: symbol } });
+            const content = ((res?.content as Array<{ text?: string }> | undefined) || []).map((c: { text?: string }) => c.text).filter(Boolean).join("\n");
+            if (!content) return null;
+            try {
+              const data = JSON.parse(content);
+              return data.address || null;
+            } catch {
+              return null;
             }
+          };
+
+          const fromAddr = await safeParseTokenResult(fromSymbol);
+          const toAddr = await safeParseTokenResult(toSymbol);
+          if (!fromAddr || !toAddr) throw new Error(`Cannot resolve token: ${!fromAddr ? fromSymbol : toSymbol}`);
+
+          const quoteResult = await lifiClient?.callTool({ name: "get-quote", arguments: { fromChain: "1", toChain: "1", fromToken: fromAddr, toToken: toAddr, fromAmount, fromAddress: userAddress } });
+          const quoteContent = ((quoteResult?.content as Array<{ text?: string }> | undefined) || []).map((c: { text?: string }) => c.text).filter(Boolean).join("\n");
+          const quoteData = JSON.parse(quoteContent);
+          const txReq = quoteData.transactionRequest || quoteData.estimate?.transactionRequest;
+          if (txReq) {
+            o.tx = { to: txReq.to, data: txReq.data, value: txReq.value || "0x0", chainId: txReq.chainId || 1 };
           }
         } catch (e) {
           return { ...o, error: `LI.FI auto-resolve failed: ${(e as Error).message}`, ...(o.tx ? { tx: o.tx } : {}) };

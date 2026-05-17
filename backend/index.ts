@@ -67,9 +67,8 @@ export class MCPClient {
 
         const toolsResult = await client.listTools();
         // console.log(`Server "${cfg.name}" offers tools:`, toolsResult.tools.map((t) => t.name));
-        const blockedTools = new Set(["get-earn-vaults", "get-earn-vault", "get-earn-portfolio", "get-earn-chains", "get-earn-protocols"]);
         const serverTools = toolsResult.tools
-          .filter((tool) => !blockedTools.has(tool.name))
+          .filter((tool) => tool.name !== "get-earn-portfolio")
           .map((tool) => {
             return {
               type: "function" as const,
