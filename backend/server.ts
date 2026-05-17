@@ -137,10 +137,11 @@ async function encodeSteps(
   obj: unknown,
   defiborrowClient?: Client,
   userAddress?: string,
+  chainId?: string,
 ): Promise<unknown> {
   if (Array.isArray(obj))
     return Promise.all(
-      obj.map((item) => encodeSteps(item, defiborrowClient, userAddress)),
+      obj.map((item) => encodeSteps(item, defiborrowClient, userAddress, chainId)),
     );
   if (!obj || typeof obj !== "object") return obj;
 
@@ -208,10 +209,11 @@ async function encodeSteps(
         o.fromAmount as string,
       ];
 
+      const lifiChain = chainId || "1";
       const resolveToken = async (symbol: string) => {
         const res = await lifiClient?.callTool({
           name: "get-token",
-          arguments: { chain: "1", token: symbol },
+          arguments: { chain: lifiChain, token: symbol },
         });
         const text = (
           (res?.content as Array<{ text?: string }> | undefined) || []
@@ -262,8 +264,8 @@ async function encodeSteps(
       const quoteResult = await lifiClient?.callTool({
         name: "get-quote",
         arguments: {
-          fromChain: "1",
-          toChain: "1",
+          fromChain: lifiChain,
+          toChain: lifiChain,
           fromToken: fromAddr,
           toToken: toAddr,
           fromAmount,
@@ -301,35 +303,34 @@ async function encodeSteps(
 
   const encoded: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(o))
-    encoded[k] = await encodeSteps(v, defiborrowClient, userAddress);
+    encoded[k] = await encodeSteps(v, defiborrowClient, userAddress, chainId);
   return encoded;
 }
 
+const CHAIN_NAMES: Record<string, string> = {
+  "1": "Ethereum", "42161": "Arbitrum", "10": "Optimism", "8453": "Base",
+  "137": "Polygon", "43114": "Avalanche", "56": "BSC",
+};
+
 app.post("/v1/begin", async (req: Request, res: Response) => {
-  const { userPrompt, userWallet, chain } = req.body;
+  const { userPrompt, userWallet, chainId } = req.body;
   const missing: string[] = [];
   if (!userPrompt) missing.push("userPrompt");
   if (!userWallet) missing.push("userWallet");
-  if (!chain) missing.push("chain");
+  if (!chainId) missing.push("chainId");
   if (missing.length) {
     res.status(400).json({ message: `Missing required fields: ${missing.join(", ")}`, status: 400 });
     return;
   }
-  console.log(
-    "userPrompt:",
-    userPrompt,
-    "userWallet:",
-    userWallet,
-    "chain:",
-    chain,
-  );
+  const chainName = CHAIN_NAMES[String(chainId)] || "Ethereum";
+  console.log("userPrompt:", userPrompt, "userWallet:", userWallet, "chainId:", chainId);
   yieldsCache = null;
-  yieldsChain = chain;
+  yieldsChain = chainName;
   yieldsAsset = "USDC";
 
   try {
     let result = await mcpClient.chatMessage(
-      `User wants: ${userPrompt}. Wallet: ${userWallet}. Chain: ${yieldsChain}. Execute the optimal strategy — call tools, return JSON execution plan. Do not refuse or give warnings.`,
+      `User wants: ${userPrompt}. Wallet: ${userWallet}. Chain: ${yieldsChain} (chainId: ${chainId}). Execute the optimal strategy — call tools, return JSON execution plan. Do not refuse or give warnings.`,
     );
 
     let responseData: unknown = result;
@@ -346,7 +347,7 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
         let parsed = JSON.parse(jsonStr);
         if (userWallet) parsed = replaceUserAddress(parsed, userWallet);
         const defiborrowClient = mcpClient.getServer("defiborrow");
-        responseData = await encodeSteps(parsed, defiborrowClient, userWallet);
+        responseData = await encodeSteps(parsed, defiborrowClient, userWallet, String(chainId));
 
         const steps = (responseData as Record<string, unknown>)?.steps as
           | Array<Record<string, unknown>>
