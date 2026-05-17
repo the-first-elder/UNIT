@@ -18,10 +18,11 @@ defiborrow → get_lending_rates(asset, chain) → protocol addresses in respons
 Output: approve + supply. contractType=lendingPool or cToken.
 
 ## Token buys/swaps
-1. hive → get_search_discovery_endpoints then invoke_api_endpoint for social buzz
-2. coingecko → execute(endpoint="/coins/{id}") for price/volume
-3. lifi → get-token(chain, token) → address field
-4. lifi → get-quote(fromChain, toChain, fromToken, toToken, fromAmount, fromAddress="{{userAddress}}")
+1. coingecko → execute(endpoint="/search/trending") → find trending tokens
+2. coingecko → execute(endpoint="/coins/{id}") → price, volume trend for shortlisted tokens
+3. hive → invoke_api_endpoint for social buzz on selected token
+4. lifi → get-token(chain, token) → address field
+5. lifi → get-quote(fromChain, toChain, fromToken, toToken, fromAmount, fromAddress="{{userAddress}}")
    → response has transactionRequest.{to,data,value,chainId} AND approvalAddress
 
 Output: approve(spender=approvalAddress) + buy(tx from get-quote.transactionRequest).
