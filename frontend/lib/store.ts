@@ -9,7 +9,7 @@ import type {
   TxStatus,
 } from "./types";
 
-type WalletType = "passkey" | "social" | null;
+type WalletType = "passkey" | "social" | "simulator" | null;
 
 interface AppState {
   messages: ChatMessage[];
@@ -61,15 +61,47 @@ export const useAppStore = create<AppState>((set) => ({
 
   updateExecutionState: (step, status, txHash, error) =>
     set((s) => {
-      const next = new Map(s.executionStates);
-      const existing = next.get(step);
-      next.set(step, {
+      const nextMap = new Map(s.executionStates);
+      const existing = nextMap.get(step);
+      nextMap.set(step, {
         step: existing?.step || { step, type: "contract", chain: "", strategy: "", action: "", description: "" } as ExecutionStep,
         status,
         txHash,
         error,
       });
-      return { executionStates: next };
+
+      // Update the status in the assistant message's execution plan that contains this step
+      const nextMessages = s.messages.map((msg) => {
+        if (msg.role === "assistant" && msg.executionPlan) {
+          const plan = msg.executionPlan;
+          const hasStep = plan.states.some((st) => st.step.step === step);
+          if (hasStep) {
+            const updatedStates = plan.states.map((st) => {
+              if (st.step.step === step) {
+                return { ...st, status, txHash, error };
+              }
+              return st;
+            });
+            const isComplete = updatedStates.every(
+              (st) => st.status === "success" || st.status === "failed" || st.status === "skipped"
+            );
+            return {
+              ...msg,
+              executionPlan: {
+                ...plan,
+                states: updatedStates,
+                isComplete,
+              },
+            };
+          }
+        }
+        return msg;
+      });
+
+      return {
+        executionStates: nextMap,
+        messages: nextMessages,
+      };
     }),
 
   resetExecution: () => set({ executionStates: new Map() }),

@@ -5,7 +5,6 @@ import { LiveDemo } from "@/components/home/live-demo";
 import { Stats } from "@/components/home/stats";
 import { WealthProjection } from "@/components/home/wealth-projection";
 import { Features } from "@/components/home/features";
-import { ExecutionFlow } from "@/components/home/execution-flow";
 import { HowItWorks } from "@/components/home/how-it-works";
 import { Protocols } from "@/components/home/protocols";
 import { Security } from "@/components/home/security";
@@ -20,7 +19,6 @@ export default function HomePage() {
           <Stats />
           <LiveDemo />
           <WealthProjection />
-          <ExecutionFlow />
           <HowItWorks />
           <Features />
           <Protocols />

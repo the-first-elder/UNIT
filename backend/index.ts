@@ -2,7 +2,7 @@ import { OpenAI } from "openai";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { FunctionTool, ResponseFunctionToolCall } from "openai/resources/responses/responses";
+// No responses import needed for standard chat completions
 import dotenv from "dotenv";
 import { SYSTEM_PROMPT } from "./agent.js";
 
@@ -22,7 +22,7 @@ export type ServerConfig =
 
 export class MCPClient {
   private servers: Map<string, Client> = new Map();
-  private tools: FunctionTool[] = [];
+  private tools: any[] = [];
   private toolToServer: Map<string, string> = new Map();
 
   async connectToServers(configs: ServerConfig[]) {
@@ -42,17 +42,24 @@ export class MCPClient {
         const toolsResult = await client.listTools();
         const serverTools = toolsResult.tools
           .filter((t) => t.name !== "get-earn-portfolio" && !t.name.startsWith("get-earn-"))
-          .map((t) => ({ type: "function" as const, name: t.name, description: t.description, parameters: t.inputSchema, strict: false }));
+          .map((t) => ({
+            type: "function" as const,
+            function: {
+              name: t.name,
+              description: t.description,
+              parameters: t.inputSchema,
+            },
+          }));
 
         return { name: cfg.name, client, serverTools };
       }),
     );
 
     for (const { name, client, serverTools } of results) {
-      for (const t of serverTools) this.toolToServer.set(t.name, name);
+      for (const t of serverTools) this.toolToServer.set(t.function.name, name);
       this.tools.push(...serverTools);
       this.servers.set(name, client);
-      console.log(`Connected to "${name}" with tools:`, serverTools.map(({ name: n }) => n));
+      console.log(`Connected to "${name}" with tools:`, serverTools.map(({ function: f }) => f.name));
     }
   }
 
@@ -60,58 +67,80 @@ export class MCPClient {
     const maxIterations = parseInt(process.env.AI_MAX_ITERATIONS ?? "10", 10);
     const systemMessages: any[] = [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: query }];
 
-    let response: (OpenAI.Responses.Response & { _request_id?: string | null }) | undefined;
+    let lastMessage: any = null;
 
     for (let i = 0; i < maxIterations; i++) {
-      response = await openai.responses.create({
-        model: process.env.AI_MODEL,
-        input: systemMessages,
+      const response = await openai.chat.completions.create({
+        model: process.env.AI_MODEL || "google/gemini-2.5-flash:free",
+        messages: systemMessages,
         tools: this.tools,
-        context_management: [{ type: "compaction", compact_threshold: 100000 }],
       });
 
-      const toolCalls = response.output.filter(
-        (item): item is ResponseFunctionToolCall => item.type === "function_call",
-      );
+      const message = response.choices[0].message;
+      systemMessages.push(message);
+      lastMessage = message;
 
-      if (toolCalls.length === 0) {
-        const text = response.output_text;
+      const toolCalls = message.tool_calls;
+
+      if (!toolCalls || toolCalls.length === 0) {
+        const text = message.content || "";
         console.log("Final Answer:", text);
         return text;
       }
 
-      console.log("Calling tools:", toolCalls.map((tc) => tc.name));
+      console.log("Calling tools:", toolCalls.map((tc) => tc.function.name));
 
       const results = await Promise.all(
         toolCalls.map(async (tc) => {
-          const client = this.servers.get(this.toolToServer.get(tc.name) ?? "");
-          if (!client) return { tc, call_id: tc.call_id, output: JSON.stringify({ error: `No server for: ${tc.name}` }) };
+          const client = this.servers.get(this.toolToServer.get(tc.function.name) ?? "");
+          if (!client) {
+            return {
+              role: "tool" as const,
+              tool_call_id: tc.id,
+              content: JSON.stringify({ error: `No server for: ${tc.function.name}` }),
+            };
+          }
 
           let args: Record<string, unknown>;
-          try { args = JSON.parse(tc.arguments); } catch {
-            return { tc, call_id: tc.call_id, output: JSON.stringify({ error: "Failed to parse arguments" }) };
+          try {
+            args = JSON.parse(tc.function.arguments);
+          } catch {
+            return {
+              role: "tool" as const,
+              tool_call_id: tc.id,
+              content: JSON.stringify({ error: "Failed to parse arguments" }),
+            };
           }
 
           try {
-            const result = await client.callTool({ name: tc.name, arguments: args });
+            const result = await client.callTool({ name: tc.function.name, arguments: args });
             const MAX_OUTPUT = 4000;
             let output = JSON.stringify(result);
-            if (output.length > MAX_OUTPUT) output = output.slice(0, MAX_OUTPUT) + `\n... [truncated ${output.length - MAX_OUTPUT} more chars]`;
-            return { tc, call_id: tc.call_id, output };
+            if (output.length > MAX_OUTPUT) {
+              output = output.slice(0, MAX_OUTPUT) + `\n... [truncated ${output.length - MAX_OUTPUT} more chars]`;
+            }
+            return {
+              role: "tool" as const,
+              tool_call_id: tc.id,
+              content: output,
+            };
           } catch (err) {
-            return { tc, call_id: tc.call_id, output: JSON.stringify({ error: String(err) }) };
+            return {
+              role: "tool" as const,
+              tool_call_id: tc.id,
+              content: JSON.stringify({ error: String(err) }),
+            };
           }
         }),
       );
 
       for (const r of results) {
-        systemMessages.push(r.tc);
-        systemMessages.push({ type: "function_call_output", call_id: r.call_id, output: r.output });
+        systemMessages.push(r);
       }
     }
 
     console.warn("Max iterations reached without final answer.");
-    return response!.output_text || "Max iterations reached without final answer.";
+    return lastMessage?.content || "Max iterations reached without final answer.";
   }
 
   async chatMessage(message: string) {

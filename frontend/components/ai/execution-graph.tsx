@@ -15,64 +15,50 @@ export function ExecutionGraph({ steps, states }: Props) {
   if (!steps.length) return null;
 
   return (
-    <div className="relative py-4 px-2">
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
-        {steps.map((step, i) => {
-          if (i === steps.length - 1) return null;
-          const x1 = 40;
-          const y1 = i * 64 + 40;
-          const x2 = 40;
-          const y2 = (i + 1) * 64 + 40;
-          return (
-            <line
-              key={i}
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
-              stroke="rgb(39, 39, 42)"
-              strokeWidth={2}
-              strokeDasharray="4 4"
-            />
-          );
-        })}
-      </svg>
+    <div className="relative py-2 pl-2">
+      {/* Responsive native CSS vertical track */}
+      <div className="absolute left-[17px] top-6 bottom-6 w-0.5 bg-zinc-800/80" />
 
-      <div className="space-y-4 relative">
+      <div className="space-y-5 relative">
         {steps.map((step, i) => {
           const state = stateMap.get(step.step);
           const status = state?.status || "pending";
           return (
             <motion.div
               key={step.step}
-              initial={{ opacity: 0, x: -20 }}
+              initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05 }}
-              className="flex items-center gap-3"
+              className="flex items-start gap-4"
             >
               <div
                 className={cn(
-                  "h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center text-[8px] font-bold",
-                  status === "success" && "border-green-400 bg-green-500/20 text-green-400",
-                  status === "executing" && "border-blue-400 bg-blue-500/20 text-blue-400",
-                  status === "failed" && "border-red-400 bg-red-500/20 text-red-400",
-                  status === "pending" && "border-muted-foreground/30 bg-card text-muted-foreground/50",
+                  "h-[22px] w-[22px] rounded-full border-[1.5px] shrink-0 flex items-center justify-center text-[9px] font-bold z-10",
+                  status === "success" && "border-emerald-500/50 bg-emerald-500/10 text-emerald-400",
+                  status === "executing" && "border-blue-500/50 bg-blue-500/10 text-blue-400",
+                  status === "failed" && "border-rose-500/50 bg-rose-500/10 text-rose-400",
+                  status === "pending" && "border-zinc-700 bg-[#0a0a0c] text-zinc-500",
                 )}
               >
                 {status === "executing" ? (
-                  <span className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
                 ) : status === "success" ? (
                   "✓"
                 ) : (
                   step.step
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs text-foreground/80 truncate">
-                  {step.action} · {step.description}
+              <div className="flex-1 min-w-0 bg-white/5 hover:bg-white/[0.08] transition-colors rounded-xl p-3 border border-white/5 shadow-sm">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold text-white uppercase tracking-wider">{step.action}</span>
+                  <span className="text-[8px] font-mono font-bold text-zinc-400 bg-black/40 px-1.5 py-0.5 rounded border border-white/5">{step.chain}</span>
                 </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {step.chain} · {step.type}
+                <div className="text-[11px] text-zinc-300 leading-snug">
+                  {step.description}
+                </div>
+                <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-[8px] font-mono text-zinc-500">
+                  <span className="text-blue-400/80 uppercase">Type: {step.type}</span>
+                  <span>ID: {step.step}</span>
                 </div>
               </div>
             </motion.div>

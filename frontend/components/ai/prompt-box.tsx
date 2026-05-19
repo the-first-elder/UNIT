@@ -118,7 +118,7 @@ export function PromptBox({ onSend, placeholder = "Ask UNIT to execute a strateg
               >
                 <Button
                   size="icon"
-                  className="h-9 w-9 bg-blue-500 hover:bg-blue-600"
+                  className="h-9 w-9 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-md shadow-blue-500/20"
                   onClick={handleSend}
                   disabled={!text.trim()}
                 >

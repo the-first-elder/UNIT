@@ -5,21 +5,21 @@ import { useEffect, useRef, useState } from "react";
 import { TrendingUp, Globe, Zap, Shield } from "lucide-react";
 
 const stats = [
-  { value: 7, suffix: "+", label: "Data Sources", sub: "yields · sentiment · risk", icon: Globe },
-  { value: 6, suffix: "", label: "Chains", sub: "Ethereum · Arbitrum · Base · more", icon: Zap },
-  { value: 5, suffix: "s", label: "Response Time", sub: "prompt to execution plan", icon: TrendingUp },
-  { value: 100, suffix: "%", label: "On-Chain", sub: "every transaction verifiable", icon: Shield },
+  { value: 7, suffix: "+", label: "Data Sources", sub: "Yields, sentiment, risk", icon: Globe, color: "from-blue-400 to-blue-600", shadow: "shadow-blue-500/20" },
+  { value: 6, suffix: "", label: "EVM Chains", sub: "Ethereum, Arbitrum, Base...", icon: Zap, color: "from-cyan-400 to-cyan-600", shadow: "shadow-cyan-500/20" },
+  { value: 5, suffix: "s", label: "Response Time", sub: "Prompt to execution plan", icon: TrendingUp, color: "from-emerald-400 to-emerald-600", shadow: "shadow-emerald-500/20" },
+  { value: 100, suffix: "%", label: "On-Chain", sub: "Fully transparent tracking", icon: Shield, color: "from-indigo-400 to-indigo-600", shadow: "shadow-indigo-500/20" },
 ];
 
-function AnimatedNumber({ target, suffix, delay }: { target: number; suffix: string; delay: number }) {
+function AnimatedNumber({ target, suffix }: { target: number; suffix: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-50px" });
   const [count, setCount] = useState(0);
 
   useEffect(() => {
     if (!inView) return;
-    const duration = 1500;
-    const steps = 30;
+    const duration = 2000;
+    const steps = 40;
     const increment = target / steps;
     let current = 0;
     const timer = setInterval(() => {
@@ -35,7 +35,7 @@ function AnimatedNumber({ target, suffix, delay }: { target: number; suffix: str
   }, [inView, target]);
 
   return (
-    <div ref={ref} className="text-3xl md:text-4xl font-bold bg-gradient-to-b from-foreground to-foreground/60 bg-clip-text text-transparent mb-1 tabular-nums">
+    <div ref={ref} className="text-5xl md:text-6xl font-black bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent mb-2 tabular-nums tracking-tighter drop-shadow-xl">
       {count}{suffix}
     </div>
   );
@@ -47,49 +47,54 @@ export function Stats() {
     target: ref,
     offset: ["start end", "end start"],
   });
-  const y = useTransform(scrollYProgress, [0, 1], [80, -80]);
-  const rotateX = useTransform(scrollYProgress, [0, 0.5, 1], [3, 0, -3]);
+  const y = useTransform(scrollYProgress, [0, 1], [100, -100]);
 
   return (
-    <section ref={ref} className="py-28 px-6 relative perspective-[800px]">
-      <motion.div style={{ y, rotateX }} className="max-w-5xl mx-auto">
-        <div className="glass rounded-3xl border-border/40 p-10 md:p-14 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/3 via-transparent to-cyan-500/3 pointer-events-none" />
+    <section id="stats" ref={ref} className="py-32 px-6 relative bg-[#030305]">
+      {/* Background elements */}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-900/5 to-transparent pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[300px] bg-blue-500/10 blur-[120px] rounded-[100%] pointer-events-none" />
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12 relative"
-          >
-            {stats.map((stat, i) => {
-              const Icon = stat.icon;
-              return (
-                <motion.div
-                  key={stat.label}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.15, type: "spring", stiffness: 100 }}
-                  whileHover={{ y: -4 }}
-                  className="text-center group"
-                >
-                  <div className="flex justify-center mb-3">
-                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/10 flex items-center justify-center group-hover:scale-110 group-hover:border-blue-500/30 transition-all duration-300">
-                      <Icon className="h-5 w-5 text-blue-400/60 group-hover:text-blue-400 transition-colors" />
+      <motion.div style={{ y }} className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative">
+          {stats.map((stat, i) => {
+            const Icon = stat.icon;
+            return (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ delay: i * 0.15, type: "spring", stiffness: 80, damping: 20 }}
+                whileHover={{ y: -10, scale: 1.02 }}
+                className={`group relative bg-zinc-900/40 backdrop-blur-xl border border-white/5 rounded-3xl p-8 hover:border-white/20 transition-all duration-500 overflow-hidden ${stat.shadow}`}
+              >
+                {/* Glow behind the card on hover */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-[0.03] transition-opacity duration-500`} />
+                
+                <div className="flex justify-between items-start mb-6">
+                  <div className={`h-12 w-12 rounded-2xl bg-gradient-to-br ${stat.color} p-[1px] group-hover:scale-110 transition-transform duration-500`}>
+                    <div className="w-full h-full bg-zinc-950/90 rounded-2xl flex items-center justify-center">
+                      <Icon className="h-6 w-6 text-white/80 group-hover:text-white transition-colors" />
                     </div>
                   </div>
-                  <AnimatedNumber target={stat.value} suffix={stat.suffix} delay={i * 0.15} />
-                  <div className="text-xs text-muted-foreground/60 uppercase tracking-wider font-medium mt-0.5">
-                    {stat.label}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground/40 mt-0.5">
-                    {stat.sub}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </motion.div>
+                  <div className="h-2 w-2 rounded-full bg-white/20 group-hover:bg-white/80 transition-colors" />
+                </div>
+
+                <AnimatedNumber target={stat.value} suffix={stat.suffix} />
+                
+                <h3 className="text-sm font-semibold text-zinc-300 uppercase tracking-widest mt-4">
+                  {stat.label}
+                </h3>
+                <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+                  {stat.sub}
+                </p>
+
+                {/* Animated corner accent */}
+                <div className={`absolute -bottom-1 -right-1 w-16 h-16 bg-gradient-to-tl ${stat.color} blur-2xl opacity-0 group-hover:opacity-30 transition-opacity duration-700`} />
+              </motion.div>
+            );
+          })}
         </div>
       </motion.div>
     </section>

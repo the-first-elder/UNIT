@@ -2,37 +2,10 @@
 
 import { Button } from "@/components/ui/button";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { Zap, ChevronDown, Globe, Shield, Gauge, Sun, Moon } from "lucide-react";
-import Link from "next/link";
-import { useRef } from "react";
+import { Zap, ChevronDown, Globe, Shield, Gauge, Sun, Moon, ArrowRight, Activity, Cpu } from "lucide-react";
+import { useRef, useState } from "react";
 import { useTheme } from "@/hooks/use-theme";
 import { ParticleNetwork } from "./particle-network";
-
-function LiveWealthCounter() {
-  const { ref, value } = (() => {
-    const r = { ref: useRef<HTMLDivElement>(null), value: 0 };
-    return r;
-  })();
-
-  return (
-    <div className="glass rounded-2xl px-5 py-3 border-green-500/10 flex items-center gap-3">
-      <motion.div
-        animate={{ scale: [1, 1.15, 1] }}
-        transition={{ duration: 2, repeat: Infinity }}
-        className="h-2.5 w-2.5 rounded-full bg-green-400"
-      />
-      <div className="text-xs text-muted-foreground">Live P&L</div>
-      <motion.div
-        className="text-sm font-mono font-bold tabular-nums text-green-400"
-        key="hackathon-value"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-      >
-        trustless · transparent · autonomous
-      </motion.div>
-    </div>
-  );
-}
 
 export function Hero() {
   const ref = useRef<HTMLDivElement>(null);
@@ -40,138 +13,121 @@ export function Hero() {
     target: ref, offset: ["start start", "end start"],
   });
   const opacity = useTransform(scrollYProgress, [0, 1], [1, 0]);
-  const y = useTransform(scrollYProgress, [0, 1], [0, 120]);
+  const y = useTransform(scrollYProgress, [0, 1], [0, 150]);
+  const scale = useTransform(scrollYProgress, [0, 1], [1, 0.9]);
 
   const { theme, toggle } = useTheme();
+  const [prompt, setPrompt] = useState("");
+
+  const handlePromptSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (prompt.trim()) {
+      window.location.href = `/app?prompt=${encodeURIComponent(prompt.trim())}`;
+    } else {
+      window.location.href = "/app";
+    }
+  };
 
   return (
-    <section ref={ref} className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background">
-      <div className="fixed top-4 right-4 z-50">
+    <section ref={ref} className="relative min-h-[100svh] flex flex-col items-center justify-center overflow-hidden bg-[#030305] text-white">
+      {/* Dynamic Backgrounds */}
+      <ParticleNetwork />
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <motion.div 
+          animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[10%] left-[20%] w-[40vw] h-[40vw] rounded-full bg-blue-600/20 blur-[120px]" 
+        />
+        <motion.div 
+          animate={{ scale: [1, 1.5, 1], opacity: [0.2, 0.4, 0.2] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          className="absolute bottom-[10%] right-[20%] w-[50vw] h-[50vw] rounded-full bg-cyan-600/10 blur-[150px]" 
+        />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03] mix-blend-overlay"></div>
+      </div>
+
+      {/* Top App Link */}
+      <div className="absolute top-6 right-6 z-50">
         <Button
-          variant="outline"
-          size="icon"
-          className="h-9 w-9 rounded-full bg-background/80 backdrop-blur-sm border-border/50 shadow-sm"
-          onClick={toggle}
+          onClick={() => window.location.href = '/app'}
+          className="bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur-md rounded-full px-6 shadow-[0_0_15px_rgba(255,255,255,0.05)] font-semibold transition-all"
         >
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          Launch App <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
-      <ParticleNetwork />
 
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-[200px]" />
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-cyan-500/8 rounded-full blur-[200px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[900px] bg-[radial-gradient(ellipse,rgba(59,130,246,0.04)_0%,transparent_70%)]" />
-      </div>
-
-      <motion.div style={{ opacity, y }} className="relative z-10 text-center max-w-6xl mx-auto px-6">
+      {/* Main Content */}
+      <motion.div style={{ opacity, y, scale }} className="relative z-20 text-center max-w-5xl mx-auto px-6 w-full mt-10">
+        
+        {/* Massive Project Name */}
         <motion.h1
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
-          className="text-8xl sm:text-9xl md:text-[10rem] lg:text-[12rem] font-black tracking-tight leading-none mb-6"
+          initial={{ opacity: 0, scale: 0.95, filter: "blur(10px)" }}
+          animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+          className="text-8xl sm:text-[9rem] md:text-[12rem] lg:text-[16rem] font-black tracking-tighter leading-[0.8] mb-6"
         >
-          <span className="bg-gradient-to-r from-blue-400 via-cyan-300 to-emerald-300 bg-clip-text text-transparent">
+          <span className="text-transparent bg-clip-text bg-gradient-to-b from-white via-zinc-200 to-zinc-600 drop-shadow-[0_0_40px_rgba(255,255,255,0.1)]">
             UNIT
           </span>
         </motion.h1>
 
+        {/* Hero Subtitle */}
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="text-xl sm:text-2xl text-muted-foreground/80 max-w-4xl mx-auto mb-6 leading-relaxed font-light"
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="text-xl sm:text-3xl text-blue-400 max-w-2xl mx-auto mb-12 font-medium tracking-wide"
         >
-          Type what you want — UNIT scans every chain, finds the best lending rates, yield pools, and swap routes, then executes your strategy automatically. 
-          <span className="block mt-2 text-foreground/60 text-lg">
-            From a single prompt to a fully optimized, multi-protocol position. Set your risk tolerance. Let the AI build and manage it.
-          </span>
+          Autonomous DeFi Execution
         </motion.p>
 
+        {/* Interactive Prompt Box */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="flex items-center justify-center gap-3 flex-wrap mb-10"
+          transition={{ duration: 0.6, delay: 0.5 }}
+          className="max-w-2xl mx-auto w-full relative z-30"
         >
-          <div className="flex items-center gap-2 text-xs text-muted-foreground/50 bg-muted/50 px-4 py-2 rounded-full">
-            <Globe className="h-3.5 w-3.5 text-blue-400" />
-            All EVM chains
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground/50 bg-muted/50 px-4 py-2 rounded-full">
-            <Shield className="h-3.5 w-3.5 text-green-400" />
-            Non-custodial
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground/50 bg-muted/50 px-4 py-2 rounded-full">
-            <Gauge className="h-3.5 w-3.5 text-cyan-400" />
-            Low · Medium · High risk
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
-          className="flex items-center justify-center gap-4 flex-wrap"
-        >
-          <Link href="/app">
-            <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-              <Button size="xl" className="gap-2.5 text-base px-10 h-14 rounded-2xl shadow-lg shadow-blue-500/20 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 border-0">
-                <Zap className="h-5 w-5" />
-                Launch Terminal
-              </Button>
-            </motion.div>
-          </Link>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.9 }}
-          className="mt-12 flex items-center justify-center gap-4 flex-wrap"
-        >
-          <LiveWealthCounter />
-          <div className="glass rounded-2xl px-5 py-3 border-blue-500/10 flex items-center gap-3">
-            <div className="flex -space-x-1.5">
-              {["ETH", "ARB", "OP", "BASE", "MATIC", "AVAX"].map((c) => (
-                <div key={c} className="h-7 w-10 rounded-lg bg-secondary border border-border flex items-center justify-center text-[9px] font-mono text-blue-400 font-bold">
-                  {c}
-                </div>
-              ))}
+          <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-3xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+          <form
+            onSubmit={handlePromptSubmit}
+            className="relative flex flex-col sm:flex-row gap-2 bg-zinc-950/80 border border-white/10 p-2.5 rounded-3xl shadow-2xl backdrop-blur-xl"
+          >
+            <div className="flex-1 flex items-center px-4">
+              <Zap className="h-5 w-5 text-blue-400 mr-3 animate-pulse" />
+              <input
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                type="text"
+                placeholder="Ask UNIT to execute a strategy..."
+                className="w-full bg-transparent text-white placeholder:text-zinc-600 text-lg focus:outline-none focus:ring-0 h-12"
+              />
             </div>
-            <span className="text-xs text-muted-foreground">7 EVM chains</span>
-          </div>
+            <Button
+              type="submit"
+              className="group h-12 px-8 bg-blue-600 text-white hover:bg-blue-500 rounded-2xl font-bold text-sm transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(37,99,235,0.6)] flex items-center gap-2"
+            >
+              Initialize
+              <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+            </Button>
+          </form>
+
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2 }}
-          className="mt-16 flex items-center justify-center gap-8 text-xs text-muted-foreground/40"
-        >
-          {["Prompt-based strategies", "Cross-chain execution", "Risk-graded allocations", "Real-time tracking"].map((item, i) => (
-            <motion.span
-              key={item}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.3 + i * 0.08 }}
-              className="flex items-center gap-1.5"
-            >
-              <Zap className="h-3 w-3 text-blue-400/60" />
-              {item}
-            </motion.span>
-          ))}
-        </motion.div>
       </motion.div>
 
+      {/* Bottom Scroll Indicator */}
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-        transition={{ delay: 2 }}
-        className="absolute bottom-6 left-1/2 -translate-x-1/2"
+        transition={{ delay: 1.5, duration: 1 }}
+        className="absolute bottom-10 left-1/2 -translate-x-1/2"
       >
-        <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 2, repeat: Infinity }}>
-          <ChevronDown className="h-5 w-5 text-muted-foreground/20" />
-        </motion.div>
+        <a href="#stats" className="flex flex-col items-center gap-2 cursor-pointer group">
+          <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold group-hover:text-white transition-colors">Discover</span>
+          <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}>
+            <ChevronDown className="h-5 w-5 text-zinc-500 group-hover:text-white transition-colors" />
+          </motion.div>
+        </a>
       </motion.div>
     </section>
   );

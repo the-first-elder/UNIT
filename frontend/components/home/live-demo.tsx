@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
 import { Sparkles, ArrowRight, Check, ChevronRight } from "lucide-react";
 
@@ -28,7 +28,14 @@ export function LiveDemo() {
   const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [0, 1, 1, 0]);
   const y = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [60, 0, 0, -60]);
 
+  const inView = useInView(ref, { margin: "-100px" });
+
   useEffect(() => {
+    if (!inView) {
+      setVisibleLines(0);
+      setShowResults(false);
+      return;
+    }
     const timers: ReturnType<typeof setTimeout>[] = [];
     demoLines.forEach((line) => {
       timers.push(setTimeout(() => {
@@ -39,7 +46,7 @@ export function LiveDemo() {
       }, (line.delay + 0.5) * 1000));
     });
     return () => timers.forEach(clearTimeout);
-  }, []);
+  }, [inView]);
 
   return (
     <section id="live-demo" ref={ref} className="py-32 px-6 relative overflow-hidden">

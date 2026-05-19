@@ -7,30 +7,30 @@ html {
 }
 
 :root {
-  --color-background: #f8f7f4;
-  --color-foreground: #1c1b1a;
-  --color-card: #ffffff;
-  --color-card-foreground: #1c1b1a;
-  --color-popover: #ffffff;
-  --color-popover-foreground: #1c1b1a;
-  --color-primary: #2563eb;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #f0eeeb;
-  --color-secondary-foreground: #1c1b1a;
-  --color-muted: #e6e4e0;
-  --color-muted-foreground: #787572;
-  --color-accent: #f0eeeb;
-  --color-accent-foreground: #1c1b1a;
-  --color-destructive: #dc2626;
+  --color-background: #0a0a0b;
+  --color-foreground: #fafafa;
+  --color-card: #121214;
+  --color-card-foreground: #fafafa;
+  --color-popover: #121214;
+  --color-popover-foreground: #fafafa;
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #fafafa;
+  --color-secondary: #1e1e22;
+  --color-secondary-foreground: #fafafa;
+  --color-muted: #27272a;
+  --color-muted-foreground: #a1a1aa;
+  --color-accent: #1e1e22;
+  --color-accent-foreground: #fafafa;
+  --color-destructive: #ef4444;
   --color-destructive-foreground: #fafafa;
-  --color-border: #e6e4e0;
-  --color-input: #e6e4e0;
-  --color-ring: #2563eb;
-  --color-success: #16a34a;
-  --color-warning: #d97706;
-  --color-info: #0891b2;
+  --color-border: #27272a;
+  --color-input: #27272a;
+  --color-ring: #3b82f6;
+  --color-success: #22c55e;
+  --color-warning: #eab308;
+  --color-info: #06b6d4;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --radius: 0.75rem;
+  --radius: 0.875rem;
 }
 
 .dark {
@@ -117,11 +117,11 @@ html {
 }
 
 @utility glass {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(18, 18, 20, 0.7);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(39, 39, 42, 0.5);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .dark .glass {
@@ -131,8 +131,8 @@ html {
 
 @utility glass-hover {
   &:hover {
-    background: rgba(255, 255, 255, 0.8);
-    border-color: rgba(37, 99, 235, 0.2);
+    background: rgba(30, 30, 34, 0.8);
+    border-color: rgba(59, 130, 246, 0.2);
   }
 }
 

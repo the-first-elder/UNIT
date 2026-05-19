@@ -6,14 +6,24 @@ import { useSocialWallet } from "@/components/wallet/wallet-context";
 import type { ExecutionStep } from "@/lib/types";
 
 export function useExecution() {
-  const { updateExecutionState, resetExecution } = useAppStore();
+  const { updateExecutionState, resetExecution, walletType } = useAppStore();
   const [isExecutingAll, setIsExecutingAll] = useState(false);
   const social = useSocialWallet();
   const executingRef = useRef(false);
 
   const executeStep = useCallback(
     async (step: ExecutionStep) => {
-      if (!step.tx || executingRef.current) return;
+      if (executingRef.current) return;
+      
+      if (walletType === "simulator") {
+        updateExecutionState(step.step, "executing");
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const txHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}` as `0x${string}`;
+        updateExecutionState(step.step, "success", txHash);
+        return txHash;
+      }
+
+      if (!step.tx) return;
       const tx = step.tx;
       const walletId = social.walletId;
       const walletAddress = social.address;
@@ -37,7 +47,7 @@ export function useExecution() {
         return null;
       }
     },
-    [social, updateExecutionState]
+    [social, updateExecutionState, walletType]
   );
 
   // Sequential: create + execute one step at a time
@@ -63,7 +73,23 @@ export function useExecution() {
     async (steps: ExecutionStep[]) => {
       executingRef.current = true;
       setIsExecutingAll(true);
-      const valid = steps.filter((s) => !s.error && s.tx);
+      const valid = steps.filter((s) => !s.error && (s.tx || walletType === "simulator"));
+
+      if (walletType === "simulator") {
+        for (const step of valid) {
+          updateExecutionState(step.step, "executing");
+        }
+        // Simulate delay for parallel processing
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        for (const step of valid) {
+          const txHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}` as `0x${string}`;
+          updateExecutionState(step.step, "success", txHash);
+        }
+        setIsExecutingAll(false);
+        executingRef.current = false;
+        return;
+      }
+
       const walletId = social.walletId;
       const walletAddress = social.address;
       if (!walletId || !walletAddress) {
@@ -111,7 +137,7 @@ export function useExecution() {
       setIsExecutingAll(false);
       executingRef.current = false;
     },
-    [social, updateExecutionState]
+    [social, updateExecutionState, walletType]
   );
 
   return {

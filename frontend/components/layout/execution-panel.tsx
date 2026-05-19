@@ -21,13 +21,13 @@ export function ExecutionPanel() {
     <AnimatePresence mode="wait">
       {executionPanelOpen && (
         <motion.aside
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 380, opacity: 1 }}
-          exit={{ width: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: "easeInOut" }}
-          className="fixed right-0 top-0 z-40 h-full border-l border-border bg-background/95 backdrop-blur-xl overflow-hidden"
+          initial={{ x: "100%", opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: "100%", opacity: 0 }}
+          transition={{ duration: 0.25, ease: "easeInOut" }}
+          className="fixed right-0 top-0 z-50 h-full w-full sm:w-[380px] border-l border-border bg-background/95 backdrop-blur-xl shadow-2xl flex flex-col"
         >
-          <div className="flex flex-col h-full w-[380px]">
+          <div className="flex flex-col h-full w-full">
             <div className="flex items-center justify-between p-4 border-b border-border">
               <div className="flex items-center gap-2">
                 <Activity className="h-4 w-4 text-blue-400" />
@@ -74,7 +74,7 @@ export function ExecutionPanel() {
                 </div>
               )}
 
-              {lastAssistantMessage && <ChatMessageBubble message={lastAssistantMessage} />}
+              {lastAssistantMessage && <ChatMessageBubble message={lastAssistantMessage} mode="panel" />}
             </ScrollArea>
 
             <div className="p-3 border-t border-border">
