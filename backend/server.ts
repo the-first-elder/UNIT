@@ -141,7 +141,9 @@ async function encodeSteps(
 ): Promise<unknown> {
   if (Array.isArray(obj))
     return Promise.all(
-      obj.map((item) => encodeSteps(item, defiborrowClient, userAddress, chainId)),
+      obj.map((item) =>
+        encodeSteps(item, defiborrowClient, userAddress, chainId),
+      ),
     );
   if (!obj || typeof obj !== "object") return obj;
 
@@ -150,12 +152,18 @@ async function encodeSteps(
   if (o.contractType && o.contractAddress && o.functionName) {
     const addr = o.contractAddress as string;
     if (/<[^>]+>/.test(addr)) {
-      return { ...o, error: `Placeholder address "${addr}" — must resolve from a tool call` };
+      return {
+        ...o,
+        error: `Placeholder address "${addr}" — must resolve from a tool call`,
+      };
     }
     const args = (o.args as Record<string, unknown>) ?? {};
     for (const val of Object.values(args)) {
       if (typeof val === "string" && /<[^>]+>/.test(val)) {
-        return { ...o, error: `Placeholder "${val}" in args — must resolve from a tool call` };
+        return {
+          ...o,
+          error: `Placeholder "${val}" in args — must resolve from a tool call`,
+        };
       }
     }
     try {
@@ -308,8 +316,13 @@ async function encodeSteps(
 }
 
 const CHAIN_NAMES: Record<string, string> = {
-  "1": "Ethereum", "42161": "Arbitrum", "10": "Optimism", "8453": "Base",
-  "137": "Polygon", "43114": "Avalanche", "56": "BSC",
+  "1": "Ethereum",
+  "42161": "Arbitrum",
+  "10": "Optimism",
+  "8453": "Base",
+  "137": "Polygon",
+  "43114": "Avalanche",
+  "56": "BSC",
 };
 
 app.post("/v1/begin", async (req: Request, res: Response) => {
@@ -319,18 +332,31 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
   if (!userWallet) missing.push("userWallet");
   if (!chainId) missing.push("chainId");
   if (missing.length) {
-    res.status(400).json({ message: `Missing required fields: ${missing.join(", ")}`, status: 400 });
+    res
+      .status(400)
+      .json({
+        message: `Missing required fields: ${missing.join(", ")}`,
+        status: 400,
+      });
     return;
   }
-  const chainName = CHAIN_NAMES[String(chainId)] || "Ethereum";
-  console.log("userPrompt:", userPrompt, "userWallet:", userWallet, "chainId:", chainId);
+  const chainIdStr = String(chainId);
+  const chainName = CHAIN_NAMES[chainIdStr] || `Chain-${chainIdStr}`;
+  console.log(
+    "userPrompt:",
+    userPrompt,
+    "userWallet:",
+    userWallet,
+    "chainId:",
+    chainId,
+  );
   yieldsCache = null;
-  yieldsChain = chainName;
+  yieldsChain = CHAIN_NAMES[chainIdStr] || chainIdStr;
   yieldsAsset = "USDC";
 
   try {
     let result = await mcpClient.chatMessage(
-      `User wants: ${userPrompt}. Wallet: ${userWallet}. Chain: ${yieldsChain} (chainId: ${chainId}). Execute the optimal strategy — call tools, return JSON execution plan. Do not refuse or give warnings.`,
+      `User wants: ${userPrompt}. Wallet: ${userWallet}. Chain: "${chainName}" (chainId: ${chainId}). STRICT RULE: You MUST use this chain for ALL tool calls and output it in EVERY step's chain field. Never output "Ethereum" unless chainId is 1. Execute the optimal strategy — call tools, return JSON execution plan. Do not refuse or give warnings.`,
     );
 
     let responseData: unknown = result;
@@ -347,7 +373,12 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
         let parsed = JSON.parse(jsonStr);
         if (userWallet) parsed = replaceUserAddress(parsed, userWallet);
         const defiborrowClient = mcpClient.getServer("defiborrow");
-        responseData = await encodeSteps(parsed, defiborrowClient, userWallet, String(chainId));
+        responseData = await encodeSteps(
+          parsed,
+          defiborrowClient,
+          userWallet,
+          String(chainId),
+        );
 
         const steps = (responseData as Record<string, unknown>)?.steps as
           | Array<Record<string, unknown>>
@@ -447,8 +478,17 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
                 }
               }
             }
-            if ((step.action === "buy" || step.action === "swap" || step.action === "execute_swap") && step.type !== "lifi") {
-              if (!step.error) steps[i] = { ...step, error: `"${step.action}" action requires type "lifi" — got "${step.type}"` };
+            if (
+              (step.action === "buy" ||
+                step.action === "swap" ||
+                step.action === "execute_swap") &&
+              step.type !== "lifi"
+            ) {
+              if (!step.error)
+                steps[i] = {
+                  ...step,
+                  error: `"${step.action}" action requires type "lifi" — got "${step.type}"`,
+                };
             }
             if (step.action === "approve" && i + 1 < steps.length) {
               const nextStep = steps[i + 1];
