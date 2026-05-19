@@ -211,6 +211,9 @@ async function encodeSteps(
   ) {
     try {
       const lifiClient = mcpClient.getServer("lifi");
+      if (!lifiClient) {
+        return { ...o, error: "LI.FI MCP server not connected" };
+      }
       const [fromSymbol, toSymbol, fromAmount] = [
         o.fromToken as string,
         o.toToken as string,
@@ -219,12 +222,13 @@ async function encodeSteps(
 
       const lifiChain = chainId || "1";
       const resolveToken = async (symbol: string) => {
-        const res = await lifiClient?.callTool({
+        if (/^0x[a-fA-F0-9]{40}$/.test(symbol)) return symbol;
+        const res = await lifiClient.callTool({
           name: "get-token",
           arguments: { chain: lifiChain, token: symbol },
         });
         const text = (
-          (res?.content as Array<{ text?: string }> | undefined) || []
+          (res.content as Array<{ text?: string }> | undefined) || []
         )
           .map((c) => c.text)
           .filter(Boolean)
@@ -264,12 +268,13 @@ async function encodeSteps(
             fromAmount: undefined,
           };
         }
+        return { ...o, error: `Cannot resolve token: ${toSymbol}` };
       }
 
-      if (!fromAddr || !toAddr)
-        throw new Error(`Cannot resolve: ${!fromAddr ? fromSymbol : toSymbol}`);
+      if (!fromAddr)
+        return { ...o, error: `Cannot resolve token: ${fromSymbol}` };
 
-      const quoteResult = await lifiClient?.callTool({
+      const quoteResult = await lifiClient.callTool({
         name: "get-quote",
         arguments: {
           fromChain: lifiChain,
@@ -281,25 +286,29 @@ async function encodeSteps(
         },
       });
       const quoteText = (
-        (quoteResult?.content as Array<{ text?: string }> | undefined) || []
+        (quoteResult.content as Array<{ text?: string }> | undefined) || []
       )
         .map((c) => c.text)
         .filter(Boolean)
         .join("\n");
+      if (!quoteText) {
+        return { ...o, error: "LI.FI quote returned empty response" };
+      }
       const quoteData = JSON.parse(quoteText);
       const txReq =
         quoteData.transactionRequest || quoteData.estimate?.transactionRequest;
-      if (txReq) {
-        o.tx = {
-          to: txReq.to,
-          data: txReq.data,
-          value: txReq.value || "0x0",
-          chainId: txReq.chainId || 1,
-        };
-        const approvalAddr = quoteData.estimate?.approvalAddress;
-        if (approvalAddr)
-          (o as Record<string, unknown>)._approvalAddress = approvalAddr;
+      if (!txReq) {
+        return { ...o, error: "LI.FI quote did not include transactionRequest data" };
       }
+      o.tx = {
+        to: txReq.to,
+        data: txReq.data,
+        value: txReq.value || "0x0",
+        chainId: quoteData.action?.fromChainId || parseInt(lifiChain) || 1,
+      };
+      const approvalAddr = quoteData.estimate?.approvalAddress;
+      if (approvalAddr)
+        (o as Record<string, unknown>)._approvalAddress = approvalAddr;
     } catch (e) {
       return {
         ...o,
@@ -364,11 +373,13 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
     if (typeof result === "string") {
       const clean = result
         .trim()
-        .replace(/\/\/.*$/gm, "")
-        .replace(/\/\*[\s\S]*?\*\//g, "");
-      const jsonStr = clean.startsWith("```")
-        ? clean.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "")
-        : clean;
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^```(?:json)?\s*/, "")
+        .replace(/\s*```$/, "")
+        .split("\n")
+        .filter((line) => !/^\s*\/\//.test(line))
+        .join("\n");
+      const jsonStr = clean.startsWith("{") || clean.startsWith("[") ? clean : clean.replace(/^[^{[]+/, "");
       try {
         let parsed = JSON.parse(jsonStr);
         if (userWallet) parsed = replaceUserAddress(parsed, userWallet);
@@ -521,9 +532,21 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
             }
           }
         }
-      } catch {
-        /* not JSON, pass through */
+      } catch (err) {
+        console.warn("Failed to parse/encode AI response, sending raw result:", err);
       }
+    } else if (result === null || result === undefined) {
+      console.warn("AI returned null/undefined response");
+      responseData = { error: "AI returned empty response", raw: String(result ?? "") };
+    }
+
+    if (responseData === null || responseData === undefined) {
+      responseData = { error: "Empty response from AI", raw: String(result ?? "") };
+    }
+
+    if (typeof responseData === "string") {
+      console.warn("responseData is still a raw string — wrapping in fallback object");
+      responseData = { strategy: { summary: responseData.slice(0, 200), reasoning: "", risk_level: "moderate" as const, estimated_apy: "", protocol: "", realistic_expectation_note: "" }, options: [], allocations: [], steps: [] };
     }
 
     console.log("response:", responseData);

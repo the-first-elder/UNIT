@@ -2,7 +2,10 @@ import { OpenAI } from "openai";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-// No responses import needed for standard chat completions
+import type {
+  FunctionTool,
+  ResponseFunctionToolCall,
+} from "openai/resources/responses/responses";
 import dotenv from "dotenv";
 import { SYSTEM_PROMPT } from "./agent.js";
 
@@ -22,33 +25,48 @@ export type ServerConfig =
 
 export class MCPClient {
   private servers: Map<string, Client> = new Map();
-  private tools: any[] = [];
+  private tools: FunctionTool[] = [];
   private toolToServer: Map<string, string> = new Map();
 
   async connectToServers(configs: ServerConfig[]) {
     const results = await Promise.all(
       configs.map(async (cfg) => {
-        const transport = "url" in cfg
-          ? new StreamableHTTPClientTransport(new URL(cfg.url), {
-              requestInit: cfg.headers && Object.values(cfg.headers).some(Boolean)
-                ? { headers: Object.fromEntries(Object.entries(cfg.headers).filter(([, v]) => v)) }
-                : undefined,
-            })
-          : new StdioClientTransport({ command: cfg.command, args: cfg.args });
+        const transport =
+          "url" in cfg
+            ? new StreamableHTTPClientTransport(new URL(cfg.url), {
+                requestInit:
+                  cfg.headers && Object.values(cfg.headers).some(Boolean)
+                    ? {
+                        headers: Object.fromEntries(
+                          Object.entries(cfg.headers).filter(([, v]) => v),
+                        ),
+                      }
+                    : undefined,
+              })
+            : new StdioClientTransport({
+                command: cfg.command,
+                args: cfg.args,
+              });
 
-        const client = new Client({ name: `mcp-${cfg.name}`, version: "1.0.0" });
+        const client = new Client({
+          name: `mcp-${cfg.name}`,
+          version: "1.0.0",
+        });
         await client.connect(transport);
 
         const toolsResult = await client.listTools();
         const serverTools = toolsResult.tools
-          .filter((t) => t.name !== "get-earn-portfolio" && !t.name.startsWith("get-earn-"))
+          .filter(
+            (t) =>
+              t.name !== "get-earn-portfolio" &&
+              !t.name.startsWith("get-earn-"),
+          )
           .map((t) => ({
             type: "function" as const,
-            function: {
-              name: t.name,
-              description: t.description,
-              parameters: t.inputSchema,
-            },
+            name: t.name,
+            description: t.description,
+            parameters: t.inputSchema,
+            strict: false,
           }));
 
         return { name: cfg.name, client, serverTools };
@@ -56,91 +74,116 @@ export class MCPClient {
     );
 
     for (const { name, client, serverTools } of results) {
-      for (const t of serverTools) this.toolToServer.set(t.function.name, name);
+      for (const t of serverTools) this.toolToServer.set(t.name, name);
       this.tools.push(...serverTools);
       this.servers.set(name, client);
-      console.log(`Connected to "${name}" with tools:`, serverTools.map(({ function: f }) => f.name));
+      console.log(
+        `Connected to "${name}" with tools:`,
+        serverTools.map(({ name: n }) => n),
+      );
     }
   }
 
   async processQuery(query: string) {
     const maxIterations = parseInt(process.env.AI_MAX_ITERATIONS ?? "10", 10);
-    const systemMessages: any[] = [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: query }];
+    const systemMessages: any[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: query },
+    ];
 
-    let lastMessage: any = null;
+    let response:
+      | (OpenAI.Responses.Response & { _request_id?: string | null })
+      | undefined;
 
     for (let i = 0; i < maxIterations; i++) {
-      const response = await openai.chat.completions.create({
-        model: process.env.AI_MODEL || "google/gemini-2.5-flash:free",
-        messages: systemMessages,
+      response = await openai.responses.create({
+        model: process.env.AI_MODEL,
+        input: systemMessages,
         tools: this.tools,
+        context_management: [{ type: "compaction", compact_threshold: 100000 }],
       });
 
-      const message = response.choices[0].message;
-      systemMessages.push(message);
-      lastMessage = message;
+      const toolCalls = response.output.filter(
+        (item): item is ResponseFunctionToolCall =>
+          item.type === "function_call",
+      );
 
-      const toolCalls = message.tool_calls;
-
-      if (!toolCalls || toolCalls.length === 0) {
-        const text = message.content || "";
+      if (toolCalls.length === 0) {
+        const text = response.output_text || response.output
+          ?.filter((item) => item.type === "message")
+          .map((item) => (item as { content?: { text?: string }[] }).content?.map((c) => c.text).join("") ?? "")
+          .join("\n") || "";
         console.log("Final Answer:", text);
+        if (!text) {
+          console.warn("Empty output_text, full response:", JSON.stringify(response).slice(0, 500));
+        }
         return text;
       }
 
-      console.log("Calling tools:", toolCalls.map((tc) => tc.function.name));
+      console.log(
+        "Calling tools:",
+        toolCalls.map((tc) => tc.name),
+      );
 
       const results = await Promise.all(
         toolCalls.map(async (tc) => {
-          const client = this.servers.get(this.toolToServer.get(tc.function.name) ?? "");
-          if (!client) {
+          const client = this.servers.get(this.toolToServer.get(tc.name) ?? "");
+          if (!client)
             return {
-              role: "tool" as const,
-              tool_call_id: tc.id,
-              content: JSON.stringify({ error: `No server for: ${tc.function.name}` }),
+              tc,
+              call_id: tc.call_id,
+              output: JSON.stringify({ error: `No server for: ${tc.name}` }),
             };
-          }
 
           let args: Record<string, unknown>;
           try {
-            args = JSON.parse(tc.function.arguments);
+            args = JSON.parse(tc.arguments);
           } catch {
             return {
-              role: "tool" as const,
-              tool_call_id: tc.id,
-              content: JSON.stringify({ error: "Failed to parse arguments" }),
+              tc,
+              call_id: tc.call_id,
+              output: JSON.stringify({ error: "Failed to parse arguments" }),
             };
           }
 
           try {
-            const result = await client.callTool({ name: tc.function.name, arguments: args });
+            const result = await client.callTool({
+              name: tc.name,
+              arguments: args,
+            });
             const MAX_OUTPUT = 4000;
             let output = JSON.stringify(result);
-            if (output.length > MAX_OUTPUT) {
-              output = output.slice(0, MAX_OUTPUT) + `\n... [truncated ${output.length - MAX_OUTPUT} more chars]`;
-            }
-            return {
-              role: "tool" as const,
-              tool_call_id: tc.id,
-              content: output,
-            };
+            if (output.length > MAX_OUTPUT)
+              output =
+                output.slice(0, MAX_OUTPUT) +
+                `\n... [truncated ${output.length - MAX_OUTPUT} more chars]`;
+            return { tc, call_id: tc.call_id, output };
           } catch (err) {
             return {
-              role: "tool" as const,
-              tool_call_id: tc.id,
-              content: JSON.stringify({ error: String(err) }),
+              tc,
+              call_id: tc.call_id,
+              output: JSON.stringify({ error: String(err) }),
             };
           }
         }),
       );
 
       for (const r of results) {
-        systemMessages.push(r);
+        systemMessages.push(r.tc);
+        systemMessages.push({
+          type: "function_call_output",
+          call_id: r.call_id,
+          output: r.output,
+        });
       }
     }
 
     console.warn("Max iterations reached without final answer.");
-    return lastMessage?.content || "Max iterations reached without final answer.";
+    const fallback = response!.output_text || response!.output
+      ?.filter((item) => item.type === "message")
+      .map((item) => (item as { content?: { text?: string }[] }).content?.map((c) => c.text).join("") ?? "")
+      .join("\n") || "";
+    return fallback || "Max iterations reached without final answer.";
   }
 
   async chatMessage(message: string) {
