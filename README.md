@@ -551,26 +551,6 @@ npx tsc --noEmit
 
 ---
 
-## Security Considerations
-
-- **No private keys on device** — Circle W3S is a custodial wallet service; keys are managed server-side by Circle
-- **Human approval required** — the AI formulates plans but never executes without user consent
-- **PIN-protected** — every wallet is secured with a user-chosen 6-digit PIN
-- **Environment isolation** — test/development uses Circle's testnet infrastructure (`TEST_API_KEY`, `TEST_CLIENT_KEY`)
-- **.env files gitignored** — secrets never committed to version control
-- **No fund lockup** — users can withdraw funds at any time via standard wallet operations
-
----
-
-## Known Limitations
-
-- **ARC testnet `signTransaction`** — Circle's `signTransaction` endpoint does not support ARC-TESTNET; only `contractExecution` flow works
-- **LI.FI estimation on ARC** — Circle's ABI estimator fails on complex LI.FI swap calldata (solved via `callData` bypass)
-- **Batch size** — `executeBatch` with many steps may exceed gas limits; individual parallel execution recommended for complex pipelines
-- **Wallet portability** — Circle W3S wallets are locked to Circle's infrastructure; no seed phrase export available
-
----
-
 ## Built With
 
 - [Next.js 15](https://nextjs.org/) — React framework with App Router
