@@ -1,129 +1,595 @@
 # UNIT — Autonomous DeFi Execution Engine
 
-![UNIT UI](https://img.shields.io/badge/UNIT-DeFi_Engine-blue?style=for-the-badge)
-![Next.js](https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)
-![Python](https://img.shields.io/badge/Python-MCP-yellow?style=for-the-badge&logo=python)
-
-UNIT is a next-generation, AI-driven DeFi execution engine. Instead of manually bridging, swapping, and staking across fragmented networks, users simply provide a natural language prompt (e.g., *"Find the best safe yield for my 100 USDC on Arbitrum"*). 
-
-UNIT's autonomous agents will research the yield surfaces, formulate an optimal routing and execution plan, and dispatch the transactions completely autonomously using secure intent-based architecture.
-
-## 🚀 Key Features
-
-- **Prompt-to-Execution:** Convert natural language into complex, multi-step on-chain transactions.
-- **Cross-Chain by Default:** Native integration with bridging and routing protocols (e.g., LI.FI) to execute actions across any EVM chain.
-- **Real-Time Yield Research:** Utilizes a custom Model Context Protocol (MCP) to scrape live APY and TVL data across DeFi protocols.
-- **Premium Glassmorphic UI:** A highly polished, responsive "dark-glass" dashboard built with Framer Motion and TailwindCSS v4.
-- **Risk-Aware Routing:** The AI evaluates slippage, liquidity, and smart contract risk before executing a plan.
+<p align="center">
+  <img src="https://img.shields.io/badge/UNIT-DeFi_Engine-blue?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js" />
+  <img src="https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript" />
+  <img src="https://img.shields.io/badge/Python-MCP-yellow?style=for-the-badge&logo=python" />
+  <img src="https://img.shields.io/badge/Circle-W3S-purple?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/LI.FI-Swaps-orange?style=for-the-badge" />
+</p>
 
 ---
 
-## 🏗️ System Architecture
+**Stop chasing yields across a dozen tabs. UNIT reads your intent in plain English, researches the best opportunities across all of DeFi in real time, and executes the entire strategy on-chain — from approval to swap to deposit — in one shot.**
 
-UNIT is composed of three primary microservices:
+---
 
-1. **Frontend (Next.js)**: The premium user interface and terminal.
-2. **Backend (Node.js/AgentKit)**: The AI reasoning and transaction building engine.
-3. **DeFi Yield MCP (Python)**: The data-scraping context provider for real-time yields.
+## The Problem
+
+DeFi is fragmented across dozens of chains, hundreds of protocols, and thousands of pools. To execute a single strategy like *"put 1000 USDC into the safest USDC vault on Arbitrum"*, a user must:
+
+1. Bridge funds to Arbitrum (if not already there)
+2. Research vaults across Morpho, Yearn, Aave, Compound, Euler, Spark
+3. Compare APYs, TVLs, and risk profiles
+4. Approve the vault contract to spend USDC
+5. Deposit into the vault
+6. Track the transaction on-chain
+
+This takes 30+ minutes of manual work across multiple dashboards, explorer tabs, and wallet prompts — assuming the user even knows where to look.
+
+## The Solution
+
+**UNIT collapses this entire workflow into a single natural language prompt.**
+
+Type what you want. UNIT's AI agent researches live yield data via MCP tools, formulates a multi-step execution plan, and presents it for your review. One click executes the entire pipeline — approvals, swaps, and deposits — through smart contract wallets with deterministic gas and no seed phrase management.
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        USER INTERFACE                            │
+│                    Next.js 15 + Tailwind v4                       │
+│          Glassmorphic UI · Framer Motion · Recharts              │
+└──────────────────────────┬───────────────────────────────────────┘
+                           │ POST /v1/begin
+                           │ { userPrompt, userWallet, chainId }
+                           ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      AI ORCHESTRATION LAYER                       │
+│                    Node.js Express + OpenAI API                    │
+│                                                                   │
+│  ┌─────────────┐   ┌──────────────┐   ┌───────────────────────┐  │
+│  │  agent.ts   │──▶│    index.ts  │──▶│     txBuilder.ts      │  │
+│  │ (System     │   │ (MCP Client) │   │ (viem calldata encoder│  │
+│  │  Prompt)    │   │              │   │  · ERC20 · ERC4626    │  │
+│  └─────────────┘   └──────┬───────┘   │  · Lending Pool       │  │
+│                           │           │  · cToken · LiFi)     │  │
+│                           │           └───────────────────────┘  │
+└───────────────────────────┼───────────────────────────────────────┘
+                            │
+            ┌───────────────┼───────────────┐
+            ▼               ▼               ▼
+┌───────────────────┐ ┌──────────┐ ┌──────────────┐
+│   LI.FI MCP       │ │ DefiYield│ │ CoinGecko    │
+│   (Cross-chain    │ │ MCP      │ │ MCP          │
+│    Swap Quotes)   │ │ (Defi-   │ │ (Prices)     │
+│                   │ │  Llama)  │ │              │
+└───────────────────┘ └──────────┘ └──────────────┘
+┌──────────────┐ ┌────────────────┐ ┌──────────────┐
+│ CCXT MCP     │ │ Hive Sentiment│ │ Philidor     │
+│ (CEX Prices) │ │ (Market Mood) │ │ (Vault Risk) │
+└──────────────┘ └────────────────┘ └──────────────┘
+                            │
+                            ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      EXECUTION LAYER                              │
+│                    Circle W3S Smart Contract Wallets               │
+│                                                                   │
+│  ┌─────────────────────┐    ┌──────────────────────────────┐     │
+│  │  sendTransaction    │    │  sendBatchTransaction         │     │
+│  │  (Single Step via   │    │  (Atomic Multi-Step via      │     │
+│  │   callData)         │    │   executeBatch callData)     │     │
+│  └──────────┬──────────┘    └──────────────┬───────────────┘     │
+│             │                              │                      │
+│             ▼                              ▼                      │
+│    ┌────────────────────────────────────────────┐                │
+│    │     Circle W3S UserOp with `feeLevel`      │                │
+│    │     · Bundler · EntryPoint · Paymaster     │                │
+│    └──────────────────┬─────────────────────────┘                │
+└───────────────────────────────────────────────────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      BLOCKCHAIN LAYER                             │
+│                                                                   │
+│     ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐  │
+│     │ Ethereum │   │ Arbitrum │   │   Base   │   │    Arc   │  │
+│     │   (1)    │   │ (42161)  │   │  (8453)  │   │ (5042002)│  │
+│     └──────────┘   └──────────┘   └──────────┘   └──────────┘  │
+│     ┌──────────┐   ┌──────────┐   ┌──────────┐                  │
+│     │ Optimism │   │ Polygon  │   │ Avalanche│                  │
+│     │  (10)    │   │  (137)   │   │ (43114)  │                  │
+│     └──────────┘   └──────────┘   └──────────┘                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Execution Flow (End-to-End)
 
 ```mermaid
-graph TD
-    %% Define Styles
-    classDef frontend fill:#1e1e22,stroke:#3b82f6,stroke-width:2px,color:#fff
-    classDef backend fill:#121214,stroke:#10b981,stroke-width:2px,color:#fff
-    classDef mcp fill:#121214,stroke:#f59e0b,stroke-width:2px,color:#fff
-    classDef blockchain fill:#0a0a0c,stroke:#8b5cf6,stroke-width:2px,color:#fff,stroke-dasharray: 5 5
+sequenceDiagram
+    actor U as User
+    participant FE as Frontend
+    participant BE as Backend AI
+    participant MCP as MCP Tools
+    participant Circle as Circle W3S
+    participant Chain as Blockchain
 
-    %% Nodes
-    User([User Prompt]) --> Frontend[Next.js Frontend Terminal]
-    
-    subgraph Core Engine
-        Frontend -->|Prompt & Context| Backend[Node.js AI Backend]
-        Backend -->|Tx Builder| Agent[Coinbase AgentKit]
-        Backend <-->|Yield Queries| MCP[Python DeFi Yield MCP]
-    end
-
-    MCP -.->|Fetch Data| DefiLlama[DefiLlama / External APIs]
-    Agent -->|Sign & Dispatch| Blockchain[(EVM Chains: Base, Arb, Eth)]
-    
-    %% Apply Styles
-    class Frontend frontend
-    class Backend,Agent backend
-    class MCP mcp
-    class Blockchain blockchain
+    U->>FE: "Best safe yield for 1000 USDC on Base"
+    FE->>BE: POST /v1/begin
+    BE->>MCP: Get top yields, lending rates, vault risks
+    MCP-->>BE: APY/TVL/Risk data
+    BE->>BE: AI formulates strategy plan
+    BE->>BE: Resolve addresses, encode calldata
+    BE-->>FE: { strategy, steps, allocations }
+    FE->>U: Display strategy cards + execution steps
+    U->>FE: Click "Execute" (Parallel or Batch)
+    FE->>Circle: createTransactionChallenge / createBatch
+    Circle-->>FE: challengeId
+    FE->>Circle: executeChallengeById (poll)
+    Circle-->>FE: UserOp accepted
+    Chain-->>Circle: Transaction confirmed
+    Circle-->>FE: { txHash, status }
+    FE->>U: "✅ 3/3 steps confirmed"
 ```
 
 ---
 
-## 📁 Repository Structure
+## Features
 
-### 1. `/frontend` (Next.js 15)
-The user-facing application built with the App Router.
-- **`app/`**: Contains the landing page (`/`) and the primary dashboard (`/app`).
-- **`components/`**: Modular, highly reusable UI components (Charts, Execution Panels, Strategy Cards).
-- **Styling**: Enforces a strict, premium dark-mode aesthetic utilizing raw CSS variables and Tailwind utilities (`glass`, `shimmer`).
+### 🤖 AI-Powered Strategy Generation
+- **Natural language understanding** — describe goals in plain English, not Solidity
+- **Multi-protocol routing** — the AI evaluates Morpho, Aave, Yearn, Compound, Euler, Spark and selects the optimal path
+- **Live data, not hallucinations** — MCP servers feed real-time APY, TVL, and risk scores into every decision
+- **Risk-aware allocation** — splits capital across vault, lending, and speculation buckets based on your risk profile
 
-### 2. `/backend` (Node.js & TypeScript)
-The brain of UNIT. It exposes REST/WebSocket endpoints that the frontend consumes.
-- **`server.ts` & `index.ts`**: The core API gateways.
-- **`agent.ts`**: Integrates LLMs with Coinbase AgentKit to parse user intent into executable steps.
-- **`txBuilder.ts`**: Safely constructs the calldata, handles approvals, and simulates transactions before execution.
+### 🔗 Cross-Chain Infrastructure (LI.FI)
+- **200+ DEXs across 20+ chains** aggregated through LI.FI
+- **Automatic quotes** — the backend calls LI.FI to get the best swap route, no manual routing
+- **Token-agnostic** — deposit ETH, get USDC; swap USDC, get EURC; the engine handles it
 
-### 3. `/defi-yield-mcp` (Python)
-A Model Context Protocol (MCP) server.
-- Serves as an isolated, scalable data scraper.
-- Provides the Node.js backend with up-to-the-minute APY, TVL, and pool health metrics so the AI never hallucinates yield data.
+### 💼 Smart Contract Wallets (Circle W3S)
+- **No seed phrases** — social login (Google OAuth) creates a Programmable Wallet via Circle
+- **Gas abstraction** — `feeLevel: "MEDIUM"` handles fee estimation automatically
+- **Deterministic execution** — Circle's bundler + EntryPoint + Paymaster infrastructure ensures reliable transaction submission
+- **Batch atomicity** — multi-step pipelines execute as a single `executeBatch` user operation
+- **Parallel creation** — individual steps created in parallel and executed sequentially for maximum flexibility
+
+### 📊 Premium Real-Time UI
+- **Glassmorphic dark theme** — premium aesthetic with frosted glass effects, subtle animations, and responsive design
+- **Live execution tracking** — per-step status (Pending → Executing → Confirmed), animated progress bar, elapsed timer, auto-scroll
+- **Strategy visualization** — risk scores, APY comparisons, allocation breakdowns, protocol badges
+- **Landing page** — hero section, live stats counter, wealth projection calculator, interactive demo preview, protocol showcase
+
+### 🛡️ Security-First Design
+- **Human-in-the-loop** — AI generates the plan but never auto-executes; you review and approve every step
+- **No private keys on device** — Circle W3S manages key material server-side, users authorize via OAuth
+- **Partial failure recovery** — if one step fails, the UI shows exactly what went wrong and what succeeded
 
 ---
 
-## 💻 Local Development & Setup
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | Next.js 15 (App Router) | React 19, server components, optimized bundling |
+| **UI** | Tailwind CSS v4 + shadcn/ui | CSS-driven config, glassmorphic design system |
+| **Animation** | Framer Motion | Layout animations, micro-interactions |
+| **Charts** | Recharts | Yield comparisons, allocation pie charts |
+| **State** | Zustand | Global state management |
+| **Data** | TanStack React Query | Server state, caching |
+| **Wallet** | Circle W3S + Modular Wallets SDK | Social login, SCA wallets, gas abstraction |
+| **Blockchain** | viem | Type-safe contract interactions, calldata encoding |
+| **Backend** | Express.js + Node.js TypeScript | REST API, MCP client orchestration |
+| **AI** | OpenAI Responses API | Natural language → structured execution plans |
+| **MCP** | Model Context Protocol | Standardized tool interface for AI agents |
+| **Yield Data** | Python MCP Server (DefiLlama) | Real-time APY, TVL, pool risk metrics |
+| **Swaps** | LI.FI API | Cross-chain DEX aggregation, quotes |
+| **Prices** | CoinGecko + CCXT | Token prices, CEX data |
+| **Sentiment** | Hive API | Market mood analysis |
+| **Vault Risk** | Philidor | Vault risk scoring |
+
+---
+
+## Supported Chains
+
+| Chain | Chain ID | Circle Name | Status |
+|-------|----------|-------------|--------|
+| Ethereum | `1` | `ETH` | ✅ |
+| Arbitrum | `42161` | `ARB` | ✅ |
+| Optimism | `10` | `OP` | ✅ |
+| Base | `8453` | `BASE` | ✅ |
+| Polygon | `137` | `MATIC` | ✅ |
+| Avalanche | `43114` | `AVAX` | ✅ |
+| Sepolia | `11155111` | `ETH-SEPOLIA` | ✅ |
+| Arc Testnet | `5042002` | `ARC-TESTNET` | ✅ |
+
+---
+
+## Project Structure
+
+```
+aurum_unit/
+│
+├── frontend/                          # Next.js 15 Application
+│   ├── app/
+│   │   ├── globals.css                # Tailwind v4 theme + custom utilities
+│   │   ├── layout.tsx                 # Root layout (dark mode, fonts)
+│   │   ├── page.tsx                   # Landing page (hero, features, CTA)
+│   │   ├── app/page.tsx              # Dashboard (chat + execution UI)
+│   │   └── api/circle/social/        # Circle W3S API route handlers
+│   ├── components/
+│   │   ├── ai/                        # Chat, message, strategy components
+│   │   ├── home/                      # Landing page sections
+│   │   ├── transaction/               # Execution pipelines, step cards
+│   │   ├── wallet/                    # Wallet connection, network switcher
+│   │   ├── ui/                        # shadcn/ui primitives
+│   │   └── providers.tsx             # React Query, Wagmi, Theme providers
+│   ├── hooks/
+│   │   ├── use-chat.ts               # Chat interaction logic
+│   │   ├── use-execution.ts          # Transaction execution state machine
+│   │   ├── use-circle-social-wallet.ts  # Circle W3S wallet integration
+│   │   ├── use-circle-wallet.ts      # Circle developer wallet integration
+│   │   └── use-theme.tsx             # Theme context provider
+│   ├── lib/
+│   │   ├── types.ts                  # All TypeScript types & interfaces
+│   │   ├── store.ts                  # Zustand global state store
+│   │   ├── api.ts                    # Backend API client factory
+│   │   ├── circle.ts                 # Chain → RPC/circle name mappings
+│   │   └── config.ts                 # App configuration constants
+│   ├── next.config.ts                # Next.js config (webpack, images)
+│   ├── postcss.config.mjs            # PostCSS (Tailwind v4)
+│   └── package.json
+│
+├── backend/                           # AI Orchestration Server
+│   ├── server.ts                      # Express API (POST /v1/begin)
+│   ├── index.ts                       # MCP Client + OpenAI integration
+│   ├── agent.ts                       # AI system prompt
+│   ├── txBuilder.ts                   # viem-based calldata encoder
+│   ├── server.test.ts                 # API endpoint tests
+│   ├── txBuilder.test.ts             # Calldata encoding tests
+│   ├── registerSecret.ts             # Circle entity secret registration
+│   ├── generateEntitySecret.ts       # Entity secret generation
+│   └── package.json
+│
+└── defi-yield-mcp/                    # Python DeFi Yield Server
+    ├── src/defi_yield_mcp/
+    │   └── server.py                  # FastMCP server (4 tools)
+    ├── pyproject.toml
+    └── README.md
+```
+
+---
+
+## How It Works: Step by Step
+
+### 1. Prompt
+```text
+"Put 100 USDC into the best safe yield on Arbitrum"
+```
+
+### 2. AI Research Phase
+The backend connects to **7 MCP servers** simultaneously to gather data:
+
+| MCP Server | Data Fetched |
+|-----------|-------------|
+| DefiYield | Top 10 yields by APY across all chains |
+| DefiBorrow | Lending/borrow rates for USDC |
+| LI.FI | Cross-chain swap quotes (if bridging needed) |
+| CoinGecko | Current token prices, trending coins |
+| CCXT | CEX price spreads |
+| Hive Sentiment | Market mood score |
+| Philidor | Vault risk ratings |
+
+### 3. Strategy Formulation
+The AI agent, guided by the system prompt in `agent.ts`, evaluates the data and produces a structured JSON response:
+
+```json
+{
+  "strategy": {
+    "summary": "Deposit 100 USDC into Morpho USDC vault on Arbitrum for ~8.2% APY",
+    "reasoning": "Morpho USDC vault offers highest risk-adjusted yield...",
+    "risk_level": "low",
+    "estimated_apy": "8.2",
+    "protocol": "Morpho",
+    "realistic_expectation_note": "Variable rate ~6-10% APY"
+  },
+  "allocations": [
+    { "strategy": "vault", "allocation_percent": 100, "amount": "100" }
+  ],
+  "steps": [
+    {
+      "step": 1,
+      "type": "contract",
+      "action": "Approve Morpho vault to spend USDC",
+      "contractType": "erc20",
+      "contractAddress": "0x...",
+      "functionName": "approve",
+      "args": { "spender": "0x...", "amount": "100000000" }
+    },
+    {
+      "step": 2,
+      "type": "contract",
+      "action": "Deposit USDC into Morpho vault",
+      "contractType": "erc4626",
+      "contractAddress": "0x...",
+      "functionName": "deposit",
+      "args": { "assets": "100000000", "receiver": "{{wallet}}" }
+    }
+  ]
+}
+```
+
+### 4. Transaction Building
+`txBuilder.ts` resolves each step into encoded EVM calldata using viem:
+- Matches `contractType` to the correct ABI (`erc20`, `erc4626`, `lendingPool`, `cToken`)
+- Encodes function arguments via `encodeFunctionData`
+- Resolves `{{wallet}}` and other dynamic placeholders
+- For LI.FI swaps, fetches a live quote from the LI.FI API and encodes the swap call
+
+### 5. Execution (User-Initiated)
+Two execution modes are available:
+
+#### Parallel Mode
+Each step is created as an individual Circle transaction challenge. All challenges are created in parallel (via `createTransactionChallenge`), then executed sequentially. Each step's calldata is passed directly via the `callData` field, bypassing Circle's ABI estimation — critical for handling complex swap calldata that Circle's estimator can't process.
+
+#### Batch Mode (Atomic)
+All steps are wrapped into a single `executeBatch` call and submitted as one atomic transaction challenge. If any step fails, the entire batch reverts. Uses viem's `encodeFunctionData` to pre-encode the `executeBatch((address,uint256,bytes)[])` call, which is passed as raw `callData`.
+
+### 6. On-Chain Settlement
+Circle W3S handles the full lifecycle:
+1. **Challenge creation** — registers the intent with Circle's infrastructure
+2. **User operation** — Circle's bundler submits to the EntryPoint contract
+3. **Gas payment** — handled via SponsorPaymaster with `feeLevel: "MEDIUM"`
+4. **Polling** — the frontend polls Circle's API every 500ms for status updates
+5. **Confirmation** — on success, the UI displays the transaction hash with an explorer link
+6. **Fallback** — if Circle reports FAILED but the tx landed (known ARC testnet behavior), the system falls back to scanning the explorer API to find the on-chain hash
+
+---
+
+## Getting Started
 
 ### Prerequisites
-- Node.js (v18+)
-- Python (v3.10+)
-- `pnpm` or `npm`
 
-### 1. Frontend Setup
-```bash
-cd frontend
-npm install
-npm run dev
-# The frontend will be running on http://localhost:3000
-```
+| Dependency | Version | Purpose |
+|-----------|---------|---------|
+| Node.js | v18+ | Frontend + Backend runtime |
+| Python | v3.10+ | DeFi Yield MCP server |
+| pnpm or npm | latest | Package management |
+| Circle W3S Account | — | Smart contract wallet infrastructure |
 
-### 2. Backend Setup
-You will need an OpenAI API Key and Coinbase AgentKit credentials.
-```bash
-cd backend
-npm install
-# Copy the example env file and add your keys
-cp .env.example .env
-npm run dev
-```
+### 1. Clone & Install
 
-### 3. Yield MCP Setup
 ```bash
+git clone https://github.com/your-org/aurum_unit
+cd aurum_unit
+
+# Install frontend dependencies
+cd frontend && npm install && cd ..
+
+# Install backend dependencies
+cd backend && npm install && cd ..
+
+# Install Python MCP server
 cd defi-yield-mcp
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
-# Run the MCP server
-python -m src.server
+pip install -e .
+cd ..
+```
+
+### 2. Environment Configuration
+
+Create `frontend/.env`:
+
+```env
+# Circle W3S — required for wallet & execution
+NEXT_PUBLIC_CIRCLE_APP_ID=your_app_id
+NEXT_PUBLIC_CIRCLE_CLIENT_URL=https://modular-sdk.circle.com/v1/rpc/w3s/buidl
+NEXT_PUBLIC_CIRCLE_CLIENT_KEY=TEST_CLIENT_KEY:your_client_key
+CIRCLE_API_KEY=TEST_API_KEY:your_api_key
+CIRCLE_ENTITY_SECRET=your_entity_secret
+
+# Google OAuth — required for social login
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id
+
+# Backend API
+NEXT_PUBLIC_API_URL=http://localhost:3001
+
+# RPC endpoints
+ARC_RPC_URL=https://rpc.testnet.arc-node.thecanteenapp.com/v1/your_key
+
+# WalletConnect (optional, for EOA wallet fallback)
+NEXT_PUBLIC_WALLETCONNECT_ID=your_project_id
+```
+
+Create `backend/.env`:
+
+```env
+# AI Provider (OpenAI / OpenRouter / any OpenAI-compatible API)
+AI_URL="https://openrouter.ai/api/v1"
+AI_KEY="sk-or-v1-your-key"
+AI_MODEL="openai/gpt-oss-120b:free"
+
+# Circle
+CIRCLE_API_KEY=TEST_API_KEY:your_api_key
+CIRCLE_ENTITY_SECRET=your_entity_secret
+
+# MCP API Keys
+LIFI_API_KEY=your_lifi_key
+HIVE_API_KEY=hive_live_your_key
+COINDESK_API_KEY=your_coindesk_key
+
+# AI Behavior
+AI_MAX_ITERATIONS=25
+```
+
+### 3. Run
+
+```bash
+# Terminal 1: DeFi Yield MCP
+cd defi-yield-mcp
+source venv/bin/activate
+python -m defi_yield_mcp
+
+# Terminal 2: Backend
+cd backend
+npm run build && node build/index.js
+
+# Terminal 3: Frontend
+cd frontend
+npm run dev
+```
+
+Open **http://localhost:3000** → Connect with Google → Type a DeFi prompt → Execute.
+
+---
+
+## Environment Variables Reference
+
+### Frontend
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_CIRCLE_APP_ID` | ✅ | Circle W3S application identifier |
+| `NEXT_PUBLIC_CIRCLE_CLIENT_URL` | ✅ | Circle W3S SDK RPC endpoint |
+| `NEXT_PUBLIC_CIRCLE_CLIENT_KEY` | ✅ | Circle W3S client key (starts with `TEST_CLIENT_KEY:` or `LIVE_CLIENT_KEY:`) |
+| `CIRCLE_API_KEY` | ✅ | Circle API key for server-side calls |
+| `CIRCLE_ENTITY_SECRET` | ✅ | Circle entity secret (used server-side) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | ✅ | Google OAuth client ID for social login |
+| `NEXT_PUBLIC_API_URL` | ✅ | Backend API base URL (default: `http://localhost:3001`) |
+| `ARC_RPC_URL` | * | Arc testnet RPC endpoint |
+| `NEXT_PUBLIC_WALLETCONNECT_ID` | — | WalletConnect project ID (EOA fallback) |
+
+### Backend
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `AI_URL` | ✅ | OpenAI-compatible API endpoint |
+| `AI_KEY` | ✅ | API key for AI provider |
+| `AI_MODEL` | ✅ | Model identifier (e.g., `gpt-4o`, `openai/gpt-oss-120b:free`) |
+| `CIRCLE_API_KEY` | ✅ | Circle API key |
+| `CIRCLE_ENTITY_SECRET` | ✅ | Circle entity secret |
+| `LIFI_API_KEY` | ✅ | LI.FI API key for swap quotes |
+| `HIVE_API_KEY` | ✅ | Hive API key for sentiment data |
+| `COINDESK_API_KEY` | — | CoinDesk API key (optional) |
+| `AI_MAX_ITERATIONS` | — | Max tool call rounds per prompt (default: 25) |
+
+---
+
+## Wallet Architecture
+
+UNIT uses **Circle Web3 Services (W3S) Programmable Wallets** as its primary wallet infrastructure.
+
+### How Wallets Are Created
+
+```
+User clicks "Sign in with Google"
+        │
+        ▼
+Circle W3S SDK initializes with App ID + Client Key
+        │
+        ▼
+Google OAuth flow → idToken returned
+        │
+        ▼
+createUserPinWithTokenChallenge → user sets 6-digit PIN
+        │
+        ▼
+createUserWithTokenChallenge → wallet created on Circle's infrastructure
+        │
+        ▼
+Wallet address generated on the selected chain
+```
+
+### How Transactions Work
+
+1. **Challenge-based model** — every transaction starts as a "challenge" that must be "executed"
+2. **User operations** — Circle submits ERC-4337 UserOps to the blockchain via its bundler infrastructure
+3. **Gas abstraction** — `feeLevel: "MEDIUM"` lets Circle estimate and pay gas automatically (no `gasLimit`/`maxFee`/`priorityFee` parameters)
+4. **Execution polling** — the frontend polls `GET /v1/transactions/{challengeId}` every 500ms until the status is `CONFIRMED` or `FAILED`
+
+### The `callData` Approach
+
+Standard Circle integration uses `abiFunctionSignature` + `abiParameters` to describe contract calls. This breaks for complex calldata (e.g., LI.FI swap payloads) because Circle's estimator can't decode nested ABI paths.
+
+**UNIT's solution:** bypass ABI estimation entirely by passing raw pre-encoded bytes via the `callData` field (mutually exclusive with `abiFunctionSignature`/`abiParameters` per the Circle API spec). This allows any arbitrary contract call — including LI.FI router interactions and `executeBatch` multi-calls — to work through the same infrastructure.
+
+---
+
+## MCP Server Ecosystem
+
+| Server | Protocol | Purpose | Tools Provided |
+|--------|----------|---------|---------------|
+| **LI.FI** | HTTP (MCP) | Cross-chain swap quotes | `get-quote`, `get-token`, `get-chains` |
+| **DefiYield** | Python STDIO | DeFi pool data | `get_top_yields`, `get_pool_risk`, `compare_yields`, `get_chains` |
+| **DefiBorrow** | HTTP (MCP) | Lending/borrow rates | `get_lending_rates`, `get_earn_markets`, `get_borrow_markets` |
+| **CoinGecko** | HTTP (MCP) | Token prices | Token price queries, trending search |
+| **CCXT** | Node STDIO | CEX market data | Price feeds from centralized exchanges |
+| **Hive Sentiment** | HTTP (MCP) | Market sentiment | Sentiment scores, market mood analysis |
+| **Philidor** | HTTP (MCP) | Vault risk | Vault risk scoring, safety analysis |
+
+All MCP servers are connected in `backend/index.ts` via `StreamableHTTPClientTransport` or `StdioClientTransport`. The `MCPClient` class discovers available tools from each server and exposes them to the AI agent.
+
+---
+
+## Testing
+
+```bash
+# Backend unit tests (vitest)
+cd backend
+npm test
+
+# Backend watch mode
+npm run test:watch
+
+# TypeScript compilation check
+npx tsc --noEmit
 ```
 
 ---
 
-## 🔒 Security Architecture
+## Security Considerations
 
-- **Non-Custodial**: The AI constructs the transaction payload, but it is ultimately signed and broadcasted securely.
-- **Simulation Checks**: Before any transaction is proposed to the user, `txBuilder.ts` simulates the execution to catch potential reverts or sandwich attacks.
-- **Rate Limiting**: The backend aggressively limits prompt submissions to prevent API abuse.
+- **No private keys on device** — Circle W3S is a custodial wallet service; keys are managed server-side by Circle
+- **Human approval required** — the AI formulates plans but never executes without user consent
+- **PIN-protected** — every wallet is secured with a user-chosen 6-digit PIN
+- **Environment isolation** — test/development uses Circle's testnet infrastructure (`TEST_API_KEY`, `TEST_CLIENT_KEY`)
+- **.env files gitignored** — secrets never committed to version control
+- **No fund lockup** — users can withdraw funds at any time via standard wallet operations
 
-## 🤝 Contributing
+---
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## Known Limitations
+
+- **ARC testnet `signTransaction`** — Circle's `signTransaction` endpoint does not support ARC-TESTNET; only `contractExecution` flow works
+- **LI.FI estimation on ARC** — Circle's ABI estimator fails on complex LI.FI swap calldata (solved via `callData` bypass)
+- **Batch size** — `executeBatch` with many steps may exceed gas limits; individual parallel execution recommended for complex pipelines
+- **Wallet portability** — Circle W3S wallets are locked to Circle's infrastructure; no seed phrase export available
+
+---
+
+## Built With
+
+- [Next.js 15](https://nextjs.org/) — React framework with App Router
+- [Tailwind CSS v4](https://tailwindcss.com/) — Utility-first CSS
+- [Framer Motion](https://www.framer.com/motion/) — Animation library
+- [shadcn/ui](https://ui.shadcn.com/) — Accessible component primitives
+- [Circle W3S](https://developers.circle.com/w3s/) — Programmable Wallets SDK
+- [viem](https://viem.sh/) — TypeScript Ethereum library
+- [Zustand](https://github.com/pmndrs/zustand) — State management
+- [TanStack Query](https://tanstack.com/query) — Server state management
+- [LI.FI](https://li.fi/) — Cross-chain swap infrastructure
+- [OpenAI API](https://openai.com/) — AI language model
+- [MCP](https://modelcontextprotocol.io/) — Model Context Protocol
+- [DefiLlama](https://defillama.com/) — DeFi yield data
+- [Recharts](https://recharts.org/) — Charting library
+- [Recharts](https://recharts.org/) — Charting
+
+---
+
+## License
+
+MIT

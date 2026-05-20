@@ -10,17 +10,19 @@ import {
   Loader2,
   XCircle,
   AlertTriangle,
-  ArrowRight,
   ExternalLink,
   Play,
   Ban,
+  Clock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState, useRef } from "react";
 
 interface Props {
   state: TxExecutionState;
   onExecute: (step: ExecutionStep) => void;
   index?: number;
+  totalSteps?: number;
 }
 
 const actionIcons: Record<string, string> = {
@@ -37,19 +39,50 @@ const actionIcons: Record<string, string> = {
   execute_swap: "🔄",
 };
 
-export function TxStepCard({ state, onExecute, index = 0 }: Props) {
+function useTimer(running: boolean) {
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!running) { setElapsed(0); startRef.current = null; return; }
+    if (!startRef.current) startRef.current = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current!) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+  if (!running) return "";
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+export function TxStepCard({ state, onExecute, index = 0, totalSteps }: Props) {
   const { step, status, txHash, error } = state;
   const activeChain = useAppStore((s) => s.activeChain);
+  const timer = useTimer(status === "executing");
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll into view when executing
+  useEffect(() => {
+    if (status === "executing" && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [status]);
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.05 }}
+      ref={cardRef}
+      layout
+      initial={{ opacity: 0, x: -10, scale: 0.97 }}
+      animate={
+        status === "executing"
+          ? { opacity: 1, x: 0, scale: 1, boxShadow: "0 0 20px rgba(59,130,246,0.15)" }
+          : { opacity: 1, x: 0, scale: 1, boxShadow: "0 0 0px rgba(59,130,246,0)" }
+      }
+      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       className={cn(
-        "rounded-xl border p-3 transition-all duration-300",
+        "rounded-xl border p-3 transition-colors duration-300",
         status === "pending" && "border-border bg-card",
-        status === "executing" && "border-blue-500/40 bg-blue-500/5",
+        status === "executing" && "border-blue-500/50 bg-blue-500/5 ring-1 ring-blue-500/20",
         status === "success" && "border-green-500/30 bg-green-500/5",
         status === "failed" && "border-red-500/30 bg-red-500/5",
         status === "skipped" && "border-muted bg-muted/20 opacity-50"
@@ -87,7 +120,7 @@ export function TxStepCard({ state, onExecute, index = 0 }: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Step {step.step}
+              Step {step.step}{totalSteps ? ` of ${totalSteps}` : ""}
             </span>
             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
               {step.type}
@@ -167,9 +200,17 @@ export function TxStepCard({ state, onExecute, index = 0 }: Props) {
             </Button>
           )}
           {status === "executing" && (
-            <div className="flex items-center gap-1.5 text-xs text-blue-400">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Mining...
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="flex items-center gap-1.5 text-xs text-blue-400">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Executing
+              </div>
+              {timer && (
+                <div className="flex items-center gap-1 text-[10px] text-blue-400/60">
+                  <Clock className="h-2.5 w-2.5" />
+                  {timer}
+                </div>
+              )}
             </div>
           )}
           {status === "success" && (
