@@ -11,7 +11,7 @@
 
 ---
 
-**Stop chasing yields across a dozen tabs. UNIT reads your intent in plain English, researches the best opportunities across all of DeFi in real time, and executes the entire strategy on-chain — from approval to swap to deposit — in one shot.**
+**Stop chasing yields across a dozen tabs. UNIT reads your intent in plain English, researches the best opportunities across all of DeFi in real time, and executes the entire strategy on-chain — from approval to swap to deposit — in one shot. Every execution is permanently recorded as verifiable on-chain reputation via ERC-8004.**
 
 ---
 
@@ -28,11 +28,15 @@ DeFi is fragmented across dozens of chains, hundreds of protocols, and thousands
 
 This takes 30+ minutes of manual work across multiple dashboards, explorer tabs, and wallet prompts — assuming the user even knows where to look.
 
+Even when execution succeeds, there is **no on-chain record of agent performance**. Autonomous DeFi agents operate as black boxes — users have no way to verify an agent's historical success rate, review its execution history, or compare agents by trustworthiness. This lack of transparency makes it impossible to build reputation-driven markets for autonomous strategies.
+
 ## The Solution
 
 **UNIT collapses this entire workflow into a single natural language prompt.**
 
 Type what you want. UNIT's AI agent researches live yield data via MCP tools, formulates a multi-step execution plan, and presents it for your review. One click executes the entire pipeline — approvals, swaps, and deposits — through smart contract wallets with deterministic gas and no seed phrase management.
+
+**Every execution is immutably recorded on-chain via [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) Autonomous Agent Reputation.** Each step (approve, swap, deposit) is scored 100 for success or 0 for failure by a validator wallet and written to the ReputationRegistry smart contract. Anyone can query an agent's on-chain track record — total executions, average score, per-step breakdown — creating a transparent, verifiable reputation layer for autonomous agents.
 
 ---
 
@@ -89,9 +93,17 @@ Type what you want. UNIT's AI agent researches live yield data via MCP tools, fo
 │    │     Circle W3S UserOp with `feeLevel`      │                │
 │    │     · Bundler · EntryPoint · Paymaster     │                │
 │    └──────────────────┬─────────────────────────┘                │
-└───────────────────────────────────────────────────────────────────┘
-                        │
-                        ▼
+│                       │                                          │
+│                       ▼                                          │
+│    ┌────────────────────────────────────────────┐               │
+│    │     ERC-8004 REPUTATION LAYER               │               │
+│    │     · IdentityRegistry (agent NFTs)         │               │
+│    │     · ReputationRegistry (on-chain scores)  │               │
+│    │     · ValidationRegistry (verification)      │               │
+│    └─────────────────────┬───────────────────────┘               │
+└──────────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                      BLOCKCHAIN LAYER                             │
 │                                                                   │
@@ -116,6 +128,7 @@ sequenceDiagram
     participant MCP as MCP Tools
     participant Circle as Circle W3S
     participant Chain as Blockchain
+    participant Rep as ERC-8004 Registry
 
     U->>FE: "Best safe yield for 1000 USDC on Base"
     FE->>BE: POST /v1/begin
@@ -132,6 +145,8 @@ sequenceDiagram
     Circle-->>FE: UserOp accepted
     Chain-->>Circle: Transaction confirmed
     Circle-->>FE: { txHash, status }
+    FE->>Rep: recordExecutionResult (fire-and-forget)
+    Rep->>Rep: giveFeedback(agentId, score, tag)
     FE->>U: "✅ 3/3 steps confirmed"
 ```
 
@@ -163,6 +178,13 @@ sequenceDiagram
 - **Strategy visualization** — risk scores, APY comparisons, allocation breakdowns, protocol badges
 - **Landing page** — hero section, live stats counter, wealth projection calculator, interactive demo preview, protocol showcase
 
+### 📜 ERC-8004 On-Chain Reputation
+- **Agent NFTs** — each UNIT deployment registers an agent on the IdentityRegistry, minting an on-chain agent NFT
+- **Verifiable execution history** — every step (approve, swap, deposit) is scored 100 (success) or 0 (failure) and written to the ReputationRegistry
+- **Transparent track record** — anyone can query `getAgentReputation` to view total reviews, average score, and per-step breakdown with tx hashes
+- **Validator separation** — reputation is submitted by a dedicated validator wallet, not the agent owner, ensuring no self-reporting bias
+- **ERC-8004 compliant** — uses the official Autonomous Agent interface with `register`, `giveFeedback`, and `getValidationStatus` functions
+
 ### 🛡️ Security-First Design
 - **Human-in-the-loop** — AI generates the plan but never auto-executes; you review and approve every step
 - **No private keys on device** — Circle W3S manages key material server-side, users authorize via OAuth
@@ -190,6 +212,7 @@ sequenceDiagram
 | **Prices** | CoinGecko + CCXT | Token prices, CEX data |
 | **Sentiment** | Hive API | Market mood analysis |
 | **Vault Risk** | Philidor | Vault risk scoring |
+| **On-Chain Reputation** | ERC-8004 / ERC-8005 | Agent identity registry, reputation recording, validation |
 
 ---
 
@@ -347,6 +370,14 @@ Circle W3S handles the full lifecycle:
 5. **Confirmation** — on success, the UI displays the transaction hash with an explorer link
 6. **Fallback** — if Circle reports FAILED but the tx landed (known ARC testnet behavior), the system falls back to scanning the explorer API to find the on-chain hash
 
+### 7. On-Chain Reputation Recording (ERC-8004)
+After execution completes, UNIT automatically records the outcome on-chain:
+1. **Fire-and-forget** — the frontend sends each step's result (step action, success/failure) to the ERC-8004 reputation endpoint
+2. **Validator submission** — a dedicated validator wallet calls `giveFeedback` on the ReputationRegistry contract per step
+3. **Scoring** — each successful step receives a score of 100, each failure receives 0
+4. **Always-on** — fires for Manual, Parallel, and Batch execution modes; never blocks the UI, never throws
+5. **Queryable** — anyone can check the agent's track record via `getAgentReputation(agentId)` which returns total reviews, average score, and per-review breakdown with on-chain tx hashes
+
 ---
 
 ## Getting Started
@@ -460,6 +491,8 @@ Open **http://localhost:3000** → Connect with Google → Type a DeFi prompt �
 | `CIRCLE_ENTITY_SECRET` | ✅ | Circle entity secret (used server-side) |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | ✅ | Google OAuth client ID for social login |
 | `NEXT_PUBLIC_API_URL` | ✅ | Backend API base URL (default: `http://localhost:3001`) |
+| `ERC8004_AGENT_ID` | * | ERC-8004 agent NFT ID for reputation recording |
+| `ERC8004_VALIDATOR_WALLET_ID` | * | Circle dev wallet ID that submits on-chain reputation |
 | `ARC_RPC_URL` | * | Arc testnet RPC endpoint |
 | `NEXT_PUBLIC_WALLETCONNECT_ID` | — | WalletConnect project ID (EOA fallback) |
 
@@ -479,9 +512,79 @@ Open **http://localhost:3000** → Connect with Google → Type a DeFi prompt �
 
 ---
 
-## Wallet Architecture
+## Wallet & Reputation Architecture
 
 UNIT uses **Circle Web3 Services (W3S) Programmable Wallets** as its primary wallet infrastructure.
+
+---
+
+### ERC-8004 On-Chain Agent Reputation
+
+UNIT integrates [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) to create a transparent, verifiable on-chain reputation layer for autonomous DeFi execution.
+
+#### Smart Contracts (Deployed on ARC Testnet)
+
+| Contract | Address | Purpose |
+|----------|---------|---------|
+| **IdentityRegistry** | `0x8004A818BFB912233c491871b3d84c89A494BD9e` | Agent NFT registration and ownership |
+| **ReputationRegistry** | `0x8004B663056A597Dffe9eCcC1965A193B7388713` | On-chain score recording (giveFeedback) |
+| **ValidationRegistry** | `0x8004Cb1BF31DAf7788923b405b754f57acEB4272` | Third-party validation requests |
+
+#### Wallet Separation
+
+```
+Entity Secret (Circle developer)
+        │
+        ▼
+┌──────────────────────────────┐
+│     Wallet Set                │
+│  ┌────────────────────────┐  │
+│  │ Owner Wallet            │──│── Registers agent NFT
+│  │ (manages identity)      │  │   on IdentityRegistry
+│  └────────────────────────┘  │
+│  ┌────────────────────────┐  │
+│  │ Validator Wallet        │──│── Submits reputation scores
+│  │ (reports scores)        │  │   on ReputationRegistry
+│  └────────────────────────┘  │
+└──────────────────────────────┘
+```
+
+The **owner wallet** registers the agent (mints the NFT). The **validator wallet** — a separate address — submits reputation scores. This separation prevents self-reporting bias and aligns with ERC-8004's trust model.
+
+#### Reputation Flow
+
+```
+User executes a strategy (Manual / Parallel / Batch)
+        │
+        ▼
+Each step completes (success = 100, failure = 0)
+        │
+        ▼
+Frontend fires POST /api/erc8004 { action: "recordExecutionResult", steps: [...] }
+        │
+        ▼
+Validator wallet calls giveFeedback() on ReputationRegistry
+        │
+        ▼
+Event NewFeedback(agentId, validator, score, tag, txHash) emitted
+        │
+        ▼
+Anyone queries getAgentReputation(agentId)
+   → { totalReviews: 5, averageScore: 100, reviews: [...] }
+```
+
+Each review includes the step tag (e.g., `"approve_usdc"`, `"swap_to_eurc"`), the score (100 or 0), and the transaction hash — creating an immutable, publicly verifiable execution log.
+
+#### One-Shot Setup
+
+```bash
+cd frontend
+node setup-reputation.mjs
+```
+
+This creates a wallet set, registers the agent, resolves the agent ID, and outputs the env vars to add to `.env.local`.
+
+---
 
 ### How Wallets Are Created
 
