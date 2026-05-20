@@ -1,9 +1,10 @@
 "use client";
 
 import type { ExecutionStep, TxExecutionState } from "@/lib/types";
+import type { ReputationRecord } from "@/hooks/use-execution";
 import { TxStepCard } from "./tx-step";
 import { Button } from "@/components/ui/button";
-import { Play, Layers, ArrowRight, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Play, Layers, ArrowRight, Loader2, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRef, useMemo } from "react";
 
@@ -14,6 +15,7 @@ interface Props {
   onExecuteAll: (steps: ExecutionStep[]) => void;
   onExecuteParallel: (steps: ExecutionStep[]) => void;
   isExecuting: boolean;
+  reputationTx?: ReputationRecord | null;
 }
 
 export function TxPipeline({
@@ -23,6 +25,7 @@ export function TxPipeline({
   onExecuteAll,
   onExecuteParallel,
   isExecuting,
+  reputationTx,
 }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
   const stateMap = new Map(states.map((s) => [s.step.step, s]));
@@ -234,6 +237,33 @@ export function TxPipeline({
             <span className="inline-flex items-center gap-1.5">
               <XCircle className="h-3 w-3" />
               {executedCount}/{totalCount} completed — {totalCount - executedCount} failed
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reputation recorded indicator */}
+      <AnimatePresence>
+        {reputationTx && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="flex items-center justify-center gap-2 pt-1 pb-0.5"
+          >
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-500/70 bg-emerald-500/5 px-2.5 py-1 rounded-full">
+              <CheckCircle2 className="h-3 w-3" />
+              {reputationTx.count} step{reputationTx.count > 1 ? "s" : ""} recorded on-chain
+              {reputationTx.txHash && (
+                <a
+                  href={`https://testnet.arcscan.app/tx/${reputationTx.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 text-emerald-500/50 hover:text-emerald-400 transition-colors"
+                >
+                  <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              )}
             </span>
           </motion.div>
         )}

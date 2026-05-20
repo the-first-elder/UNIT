@@ -1,0 +1,15 @@
+{
+  "name": "UNIT",
+  "description": "Autonomous trading agent on Arc",
+  "image": "https://github.com/the-first-elder/UNIT/blob/main/frontend/public/icon.svg",
+  "agent_type": "trading",
+  "capabilities": [
+    "yield_optimization",
+    "yield_farming",
+    "arbitrage_detection",
+    "liquidity_monitoring",
+    "automated_execution",
+    "price_feed_aggregation"
+  ],
+  "version": "1.0.0"
+}

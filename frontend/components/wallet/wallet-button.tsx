@@ -12,7 +12,6 @@ import {
   Chrome,
   Copy,
   Check,
-  Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -31,7 +30,6 @@ export function WalletButton() {
   const connected = Boolean(walletAddress);
   const activeAddress = walletAddress || "";
   const isSocial = walletType === "social";
-  const isSimulator = walletType === "simulator";
   const circleWallet = useCircleWallet();
   const social = useSocialWallet();
   const [copied, setCopied] = useState(false);
@@ -51,7 +49,7 @@ export function WalletButton() {
           <Button variant="outline" size="sm" className="gap-2 w-full border-emerald-500/20 bg-emerald-500/5">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="flex-1 text-left font-medium">
-              {isSimulator ? "Simulator Wallet" : shortenAddress(activeAddress, 6)}
+              {shortenAddress(activeAddress, 6)}
             </span>
             <ChevronDown className="h-3 w-3 opacity-50" />
           </Button>
@@ -64,8 +62,6 @@ export function WalletButton() {
             >
               {isSocial ? (
                 <Chrome className="h-3.5 w-3.5 text-blue-400" />
-              ) : isSimulator ? (
-                <Sparkles className="h-3.5 w-3.5 text-emerald-400 animate-pulse" />
               ) : (
                 <Fingerprint className="h-3.5 w-3.5 text-green-400" />
               )}
@@ -79,9 +75,7 @@ export function WalletButton() {
           </div>
           <DropdownMenuItem
             onClick={() => {
-              if (isSimulator) {
-                useAppStore.getState().setWallet(null, null);
-              } else if (isSocial) {
+              if (isSocial) {
                 social.disconnect();
               } else {
                 circleWallet.disconnect();

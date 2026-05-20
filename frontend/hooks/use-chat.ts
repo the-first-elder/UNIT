@@ -152,7 +152,7 @@ function getMockStrategyResponse(text: string, walletAddress: string): PromptRes
 }
 
 export function useChat() {
-  const { addMessage, updateMessage, setIsProcessing, setExecutionPanelOpen, messages, walletType } = useAppStore();
+  const { addMessage, updateMessage, setIsProcessing, setExecutionPanelOpen, messages } = useAppStore();
 
   const sendPrompt = useCallback(
     async (text: string, walletAddress: string, chainId: string) => {
@@ -175,25 +175,6 @@ export function useChat() {
       setIsProcessing(true);
       setExecutionPanelOpen(true);
 
-      // Simulator Mode: bypass API call completely and return mockup response with a slight delay
-      if (walletType === "simulator") {
-        await new Promise((resolve) => setTimeout(resolve, 1800));
-        const response = getMockStrategyResponse(text, walletAddress);
-        const states: TxExecutionState[] = (response.steps || []).map((s) => ({
-          step: s,
-          status: "pending" as const,
-        }));
-        updateMessage(assistantId, {
-          content: response.content || response.strategy?.summary || response.strategy?.reasoning || "Strategy generated.",
-          response,
-          executionPlan: { response, states, isComplete: false },
-          isLoading: false,
-          isStreaming: false,
-        });
-        setIsProcessing(false);
-        return;
-      }
-
       try {
         const response = await submitPrompt(text, walletAddress, chainId);
 
@@ -202,8 +183,19 @@ export function useChat() {
           status: "pending" as const,
         }));
 
+        let liveContent: string;
+        if (response.content) {
+          liveContent = response.content;
+        } else if (response.strategy) {
+          const liveParts = [response.strategy.summary];
+          if (response.strategy.reasoning) liveParts.push(response.strategy.reasoning);
+          if (response.strategy.realistic_expectation_note) liveParts.push(response.strategy.realistic_expectation_note);
+          liveContent = liveParts.join("\n\n");
+        } else {
+          liveContent = "Strategy generated.";
+        }
         updateMessage(assistantId, {
-          content: response.content || response.strategy?.summary || response.strategy?.reasoning || "Strategy generated.",
+          content: liveContent,
           response,
           executionPlan: { response, states, isComplete: false },
           isLoading: false,
@@ -246,7 +238,7 @@ export function useChat() {
 
       setIsProcessing(false);
     },
-    [addMessage, updateMessage, setIsProcessing, setExecutionPanelOpen, walletType]
+    [addMessage, updateMessage, setIsProcessing, setExecutionPanelOpen]
   );
 
   return { sendPrompt, messages };

@@ -28,16 +28,10 @@ export default function AppPage() {
       const params = new URLSearchParams(window.location.search);
       const promptParam = params.get("prompt");
       if (promptParam && messages.length === 0) {
-        // Auto connect simulator wallet to fast track user experience
-        if (!useAppStore.getState().walletAddress) {
-          useAppStore.getState().setWallet("0xUNIT30026e631259504795a2a4afc84bd23adb13", "simulator");
+        const activeAddr = useAppStore.getState().walletAddress;
+        if (activeAddr) {
+          sendPrompt(promptParam, activeAddr, activeChain.id);
         }
-        
-        // Grab updated address
-        const activeAddr = useAppStore.getState().walletAddress || "0xUNIT30026e631259504795a2a4afc84bd23adb13";
-        sendPrompt(promptParam, activeAddr, activeChain.id);
-        
-        // Clear params to avoid triggering on manual refresh
         const newUrl = window.location.pathname;
         window.history.replaceState({}, "", newUrl);
       }

@@ -18,7 +18,7 @@ interface Props {
 }
 
 export function ChatMessageBubble({ message, mode = "chat" }: Props) {
-  const { executeStep, executeAllSequential, executeAllParallel, isExecutingAll } = useExecution();
+  const { executeStep, executeAllSequential, executeAllParallel, isExecutingAll, reputationTx } = useExecution();
 
   const isUser = message.role === "user";
   const response = message.response;
@@ -96,6 +96,7 @@ export function ChatMessageBubble({ message, mode = "chat" }: Props) {
                       onExecuteAll={(steps) => executeAllSequential(steps, message.id)}
                       onExecuteParallel={(steps) => executeAllParallel(steps, message.id)}
                       isExecuting={isExecutingAll}
+                      reputationTx={reputationTx}
                     />
                   </div>
                 )}

@@ -158,7 +158,7 @@ export function ThinkingTerminal({ isBackendLoading = true }: { isBackendLoading
 
     const timers: NodeJS.Timeout[] = [];
     THINKING_LOGS.slice(1).forEach((item, index) => {
-      const delay = (index + 1) * 700;
+      const delay = (index + 1) * 7500 + Math.floor(Math.random() * 1000);
       const timer = setTimeout(() => {
         setLogs((prev) => [
           ...prev,

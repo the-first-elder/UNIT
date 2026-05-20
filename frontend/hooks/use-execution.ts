@@ -5,23 +5,43 @@ import { useAppStore } from "@/lib/store";
 import { useSocialWallet } from "@/components/wallet/wallet-context";
 import type { ExecutionStep } from "@/lib/types";
 
+export interface ReputationRecord {
+  txHash?: string;
+  count: number;
+  averageScore: number;
+}
+
+async function recordExecutionResult(
+  results: { success: boolean; tag: string }[],
+  onComplete?: (rep: ReputationRecord) => void,
+) {
+  try {
+    const res = await fetch("/api/erc8004", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "recordExecutionResult", steps: results }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const txHash = data.results?.[0]?.txHash as string | undefined;
+      onComplete?.({ txHash, count: data.count, averageScore: data.averageScore });
+    }
+  } catch {
+    // fire-and-forget — don't block UX
+  }
+}
+
 export function useExecution() {
-  const { updateExecutionState, resetExecution, walletType } = useAppStore();
+  const { updateExecutionState, resetExecution } = useAppStore();
   const [isExecutingAll, setIsExecutingAll] = useState(false);
+  const [reputationTx, setReputationTx] = useState<ReputationRecord | null>(null);
   const social = useSocialWallet();
   const executingRef = useRef(false);
 
   const executeStep = useCallback(
     async (step: ExecutionStep, messageId: string) => {
       if (executingRef.current) return;
-
-      if (walletType === "simulator") {
-        updateExecutionState(messageId, step.step, "executing");
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-        const txHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}` as `0x${string}`;
-        updateExecutionState(messageId, step.step, "success", txHash);
-        return txHash;
-      }
+      setReputationTx(null);
 
       if (!step.tx?.to) return;
       const tx = step.tx;
@@ -42,17 +62,20 @@ export function useExecution() {
         );
         if (txHash) {
           updateExecutionState(messageId, step.step, "success", txHash as `0x${string}`);
+          recordExecutionResult([{ success: true, tag: step.action }], setReputationTx);
         } else {
           // Challenge was approved but no on-chain confirmation yet — keep as executing
+          recordExecutionResult([{ success: false, tag: step.action }], setReputationTx);
         }
         return txHash;
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Transaction failed";
         updateExecutionState(messageId, step.step, "failed", undefined, message);
+        recordExecutionResult([{ success: false, tag: step.action }], setReputationTx);
         return null;
       }
     },
-    [social, updateExecutionState, walletType]
+    [social, updateExecutionState]
   );
 
   // Sequential: create all challenges in parallel using callData, execute one by one
@@ -60,22 +83,8 @@ export function useExecution() {
     async (steps: ExecutionStep[], messageId: string) => {
       executingRef.current = true;
       setIsExecutingAll(true);
-      const valid = steps.filter((s) => !s.error && ((s.tx?.to && s.tx?.data) || walletType === "simulator"));
-
-      if (walletType === "simulator") {
-        for (const step of valid) {
-          updateExecutionState(messageId, step.step, "executing");
-        }
-        // Simulate delay for parallel processing
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        for (const step of valid) {
-          const txHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}` as `0x${string}`;
-          updateExecutionState(messageId, step.step, "success", txHash);
-        }
-        setIsExecutingAll(false);
-        executingRef.current = false;
-        return;
-      }
+      setReputationTx(null);
+      const valid = steps.filter((s) => !s.error && s.tx?.to && s.tx?.data);
 
       const walletId = social.walletId;
       const walletAddress = social.address;
@@ -84,6 +93,8 @@ export function useExecution() {
         executingRef.current = false;
         return;
       }
+
+      const stepResults: { success: boolean; tag: string }[] = [];
 
       // Mark all as executing
       for (const step of valid) {
@@ -111,23 +122,30 @@ export function useExecution() {
             const txHash = await social.executeChallengeById(challengeId, walletId, walletAddress, step.tx!.to);
             if (txHash) {
               updateExecutionState(messageId, step.step, "success", txHash as `0x${string}`);
+              stepResults.push({ success: true, tag: step.action });
             }
           } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Transaction failed";
             updateExecutionState(messageId, step.step, "failed", undefined, message);
+            stepResults.push({ success: false, tag: step.action });
           }
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Challenge creation failed";
         for (const step of valid) {
           updateExecutionState(messageId, step.step, "failed", undefined, message);
+          stepResults.push({ success: false, tag: step.action });
         }
       }
 
       setIsExecutingAll(false);
       executingRef.current = false;
+
+      if (stepResults.length > 0) {
+        recordExecutionResult(stepResults, setReputationTx);
+      }
     },
-    [social, updateExecutionState, walletType]
+    [social, updateExecutionState]
   );
 
   // Batch: atomic executeBatch via pre-encoded callData (one challenge, all steps in one userOp)
@@ -135,21 +153,8 @@ export function useExecution() {
     async (steps: ExecutionStep[], messageId: string) => {
       executingRef.current = true;
       setIsExecutingAll(true);
-      const valid = steps.filter((s) => !s.error && ((s.tx?.to && s.tx?.data) || walletType === "simulator"));
-
-      if (walletType === "simulator") {
-        for (const step of valid) {
-          updateExecutionState(messageId, step.step, "executing");
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-        for (const step of valid) {
-          const txHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("")}` as `0x${string}`;
-          updateExecutionState(messageId, step.step, "success", txHash as `0x${string}`);
-        }
-        setIsExecutingAll(false);
-        executingRef.current = false;
-        return;
-      }
+      setReputationTx(null);
+      const valid = steps.filter((s) => !s.error && s.tx?.to && s.tx?.data);
 
       const walletId = social.walletId;
       const walletAddress = social.address;
@@ -158,6 +163,8 @@ export function useExecution() {
         executingRef.current = false;
         return;
       }
+
+      const stepResults: { success: boolean; tag: string }[] = [];
 
       // Mark all as executing
       for (const step of valid) {
@@ -175,19 +182,29 @@ export function useExecution() {
         if (txHash) {
           for (const step of valid) {
             updateExecutionState(messageId, step.step, "success", txHash as `0x${string}`);
+            stepResults.push({ success: true, tag: step.action });
+          }
+        } else {
+          for (const step of valid) {
+            stepResults.push({ success: false, tag: step.action });
           }
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Transaction failed";
         for (const step of valid) {
           updateExecutionState(messageId, step.step, "failed", undefined, message);
+          stepResults.push({ success: false, tag: step.action });
         }
       }
 
       setIsExecutingAll(false);
       executingRef.current = false;
+
+      if (stepResults.length > 0) {
+        recordExecutionResult(stepResults, setReputationTx);
+      }
     },
-    [social, updateExecutionState, walletType]
+    [social, updateExecutionState]
   );
 
   return {
@@ -195,6 +212,7 @@ export function useExecution() {
     executeAllSequential,
     executeAllParallel,
     isExecutingAll,
+    reputationTx,
     resetExecution,
   };
 }

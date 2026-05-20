@@ -8,7 +8,7 @@ import type {
   TxStatus,
 } from "./types";
 
-type WalletType = "passkey" | "social" | "simulator" | null;
+type WalletType = "passkey" | "social" | null;
 
 interface AppState {
   messages: ChatMessage[];
