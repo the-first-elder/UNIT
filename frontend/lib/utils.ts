@@ -41,7 +41,7 @@ export function explorerUrl(chainId: string, hash: string): string {
     "42161": "https://arbiscan.io",
     "8453": "https://basescan.org",
     "43114": "https://snowtrace.io",
-    "5042002": "https://explorer.arc-test.net",
+    "5042002": "https://testnet.arcscan.app",
   };
   const base = bases[chainId] || "https://etherscan.io";
   return `${base}/tx/${hash}`;

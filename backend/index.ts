@@ -109,13 +109,24 @@ export class MCPClient {
       );
 
       if (toolCalls.length === 0) {
-        const text = response.output_text || response.output
-          ?.filter((item) => item.type === "message")
-          .map((item) => (item as { content?: { text?: string }[] }).content?.map((c) => c.text).join("") ?? "")
-          .join("\n") || "";
+        const text =
+          response.output_text ||
+          response.output
+            ?.filter((item) => item.type === "message")
+            .map(
+              (item) =>
+                (item as { content?: { text?: string }[] }).content
+                  ?.map((c) => c.text)
+                  .join("") ?? "",
+            )
+            .join("\n") ||
+          "";
         console.log("Final Answer:", text);
         if (!text) {
-          console.warn("Empty output_text, full response:", JSON.stringify(response).slice(0, 500));
+          console.warn(
+            "Empty output_text, full response:",
+            JSON.stringify(response).slice(0, 500),
+          );
         }
         return text;
       }
@@ -179,10 +190,18 @@ export class MCPClient {
     }
 
     console.warn("Max iterations reached without final answer.");
-    const fallback = response!.output_text || response!.output
-      ?.filter((item) => item.type === "message")
-      .map((item) => (item as { content?: { text?: string }[] }).content?.map((c) => c.text).join("") ?? "")
-      .join("\n") || "";
+    const fallback =
+      response!.output_text ||
+      response!.output
+        ?.filter((item) => item.type === "message")
+        .map(
+          (item) =>
+            (item as { content?: { text?: string }[] }).content
+              ?.map((c) => c.text)
+              .join("") ?? "",
+        )
+        .join("\n") ||
+      "";
     return fallback || "Max iterations reached without final answer.";
   }
 

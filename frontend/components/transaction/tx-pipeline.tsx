@@ -54,22 +54,22 @@ export function TxPipeline({
           <Button
             size="sm"
             variant="outline"
-            className="h-8 text-xs gap-1.5"
+            className="h-8 text-xs gap-1.5 cursor-pointer hover:bg-accent/80 active:scale-95 transition-all"
             onClick={() => onExecuteAll(validSteps)}
             disabled={isExecuting}
           >
             <Play className="h-3 w-3" />
-            Sequential
+            Parallel
           </Button>
           <Button
             size="sm"
             variant="premium"
-            className="h-8 text-xs gap-1.5"
+            className="h-8 text-xs gap-1.5 cursor-pointer hover:opacity-90 active:scale-95 transition-all"
             onClick={() => onExecuteParallel(validSteps)}
             disabled={isExecuting}
           >
             <Layers className="h-3 w-3" />
-            Parallel
+            Batch
           </Button>
         </div>
       </div>

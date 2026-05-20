@@ -97,5 +97,6 @@ export const SUPPORTED_CHAINS: ChainConfig[] = [
   { id: "8453", name: "Base", shortName: "BASE", icon: "🔵" },
   { id: "137", name: "Polygon", shortName: "MATIC", icon: "🟣" },
   { id: "43114", name: "Avalanche", shortName: "AVAX", icon: "❄️" },
+  { id: "11155111", name: "Sepolia", shortName: "ETH", icon: "🧪" },
   { id: "5042002", name: "Arc Testnet", shortName: "ARC", icon: "🧪" },
 ];

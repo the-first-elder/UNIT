@@ -221,8 +221,22 @@ export function useChat() {
           status: "pending" as const,
         }));
         
+        const errMsg = (response as any)?.error;
+        let content: string;
+        if (errMsg) {
+          content = `❌ ${errMsg}`;
+        } else if (response.content) {
+          content = response.content;
+        } else if (response.strategy) {
+          const parts = [response.strategy.summary];
+          if (response.strategy.reasoning) parts.push(response.strategy.reasoning);
+          if (response.strategy.realistic_expectation_note) parts.push(response.strategy.realistic_expectation_note);
+          content = parts.join("\n\n");
+        } else {
+          content = "Strategy generated.";
+        }
         updateMessage(assistantId, {
-          content: `(Simulated Fallback) ${response.strategy?.summary || "Strategy generated."}`,
+          content,
           response,
           executionPlan: { response, states, isComplete: false },
           isLoading: false,

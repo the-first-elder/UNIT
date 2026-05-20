@@ -28,17 +28,16 @@ export function ChatMessageBubble({ message, mode = "chat" }: Props) {
   const plan = message.executionPlan;
   const autoFired = useRef(false);
 
-  // Auto-batch execute steps when plan arrives
-  useEffect(() => {
-    if (autoFired.current) return;
-    if (!plan || plan.isComplete) return;
-    if (!response?.steps || response.steps.length === 0) return;
-    const allPending = plan.states.every((s) => s.status === "pending");
-    if (!allPending) return;
-    autoFired.current = true;
-    // Default: execute in parallel (batch)
-    executeAllParallel(response.steps);
-  }, [plan, response, executeAllParallel]);
+  // Auto-execute disabled — user must click "Sequential" or "Parallel" after reviewing steps
+  // useEffect(() => {
+  //   if (autoFired.current) return;
+  //   if (!plan || plan.isComplete) return;
+  //   if (!response?.steps || response.steps.length === 0) return;
+  //   const allPending = plan.states.every((s) => s.status === "pending");
+  //   if (!allPending) return;
+  //   autoFired.current = true;
+  //   executeAllParallel(response.steps, message.id);
+  // }, [plan, response, executeAllParallel, message.id]);
 
   if (mode === "panel" && isUser) return null;
 
@@ -90,22 +89,26 @@ export function ChatMessageBubble({ message, mode = "chat" }: Props) {
                   </div>
                 )}
 
-                {/* Strategy summary tag */}
-                {response?.strategy && (
-                  <div className="text-xs font-semibold text-blue-500/80 dark:text-blue-400/80 px-1 py-0.5">
-                    Strategy: {response.strategy.summary} ({response.strategy.estimated_apy} APY)
-                  </div>
-                )}
-
                 {/* Execution Steps */}
                 {plan && response?.steps && response.steps.length > 0 && (
                   <div className="space-y-2">
+                    {/* Error summary banner */}
+                    {plan.isComplete && plan.states.some((s) => s.status === "failed") && (
+                      <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+                        {plan.states.filter((s) => s.status === "failed").map((s, i) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className="font-medium shrink-0">Step {s.step.step}:</span>
+                            <span>{s.error || s.step.error || "Failed"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <TxPipeline
                       steps={response.steps}
                       states={plan.states}
-                      onExecuteStep={executeStep}
-                      onExecuteAll={executeAllSequential}
-                      onExecuteParallel={executeAllParallel}
+                      onExecuteStep={(step) => executeStep(step, message.id)}
+                      onExecuteAll={(steps) => executeAllSequential(steps, message.id)}
+                      onExecuteParallel={(steps) => executeAllParallel(steps, message.id)}
                       isExecuting={isExecutingAll}
                     />
                   </div>

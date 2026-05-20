@@ -15,7 +15,7 @@ interface AppState {
   messages: ChatMessage[];
   activeChain: ChainConfig;
   isProcessing: boolean;
-  executionStates: Map<number, TxExecutionState>;
+  executionStates: Map<string, TxExecutionState>;
   sidebarOpen: boolean;
   executionPanelOpen: boolean;
   walletAddress: string | null;
@@ -28,7 +28,7 @@ interface AppState {
   setSidebarOpen: (v: boolean) => void;
   setExecutionPanelOpen: (v: boolean) => void;
   setWallet: (address: string | null, type: WalletType) => void;
-  updateExecutionState: (step: number, status: TxStatus, hash?: `0x${string}`, error?: string) => void;
+  updateExecutionState: (messageId: string, step: number, status: TxStatus, hash?: `0x${string}`, error?: string) => void;
   resetExecution: () => void;
   clearMessages: () => void;
 }
@@ -59,41 +59,32 @@ export const useAppStore = create<AppState>((set) => ({
   setExecutionPanelOpen: (v) => set({ executionPanelOpen: v }),
   setWallet: (address, type) => set({ walletAddress: address, walletType: type }),
 
-  updateExecutionState: (step, status, txHash, error) =>
+  updateExecutionState: (messageId, step, status, txHash, error) =>
     set((s) => {
+      const key = `${messageId}:${step}`;
       const nextMap = new Map(s.executionStates);
-      const existing = nextMap.get(step);
-      nextMap.set(step, {
-        step: existing?.step || { step, type: "contract", chain: "", strategy: "", action: "", description: "" } as ExecutionStep,
-        status,
-        txHash,
-        error,
-      });
 
-      // Update the status in the assistant message's execution plan that contains this step
       const nextMessages = s.messages.map((msg) => {
-        if (msg.role === "assistant" && msg.executionPlan) {
+        if (msg.id === messageId && msg.executionPlan) {
           const plan = msg.executionPlan;
-          const hasStep = plan.states.some((st) => st.step.step === step);
-          if (hasStep) {
-            const updatedStates = plan.states.map((st) => {
-              if (st.step.step === step) {
-                return { ...st, status, txHash, error };
-              }
-              return st;
-            });
-            const isComplete = updatedStates.every(
-              (st) => st.status === "success" || st.status === "failed" || st.status === "skipped"
-            );
-            return {
-              ...msg,
-              executionPlan: {
-                ...plan,
-                states: updatedStates,
-                isComplete,
-              },
-            };
-          }
+          const updatedStates = plan.states.map((st) => {
+            if (st.step.step === step) {
+              nextMap.set(key, { step: st.step, status, txHash, error });
+              return { ...st, status, txHash, error };
+            }
+            return st;
+          });
+          const isComplete = updatedStates.every(
+            (st) => st.status === "success" || st.status === "failed" || st.status === "skipped"
+          );
+          return {
+            ...msg,
+            executionPlan: {
+              ...plan,
+              states: updatedStates,
+              isComplete,
+            },
+          };
         }
         return msg;
       });

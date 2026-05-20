@@ -105,38 +105,6 @@ export function WalletButton() {
         className="w-full space-y-2"
       >
         <CircleWalletButton />
-        
-        <div className="relative py-1">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border/60" />
-          </div>
-          <div className="relative flex justify-center text-[10px]">
-            <span className="bg-card px-2 text-muted-foreground/60">or fast track</span>
-          </div>
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2 h-9 text-xs border-dashed border-emerald-500/40 hover:border-emerald-500 bg-emerald-500/[0.04] text-emerald-600 hover:bg-emerald-500/[0.08] dark:text-emerald-400 dark:hover:bg-emerald-500/[0.06] cursor-pointer font-medium"
-          onClick={() => {
-            const mockAddress = "0xUNIT30026e631259504795a2a4afc84bd23adb13";
-            useAppStore.getState().setWallet(mockAddress, "simulator");
-          }}
-        >
-          <Sparkles className="h-3.5 w-3.5 animate-pulse text-emerald-500" />
-          Connect Simulator Wallet
-        </Button>
-
-        <div className="relative py-1">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-border/60" />
-          </div>
-          <div className="relative flex justify-center text-[10px]">
-            <span className="bg-card px-2 text-muted-foreground/60">or circle wallet</span>
-          </div>
-        </div>
-        
         <CircleSocialWalletButton />
       </motion.div>
     </AnimatePresence>

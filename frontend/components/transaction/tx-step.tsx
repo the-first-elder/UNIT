@@ -4,6 +4,7 @@ import type { TxExecutionState, ExecutionStep } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, explorerUrl, shortenAddress } from "@/lib/utils";
+import { useAppStore } from "@/lib/store";
 import {
   CheckCircle2,
   Loader2,
@@ -38,6 +39,7 @@ const actionIcons: Record<string, string> = {
 
 export function TxStepCard({ state, onExecute, index = 0 }: Props) {
   const { step, status, txHash, error } = state;
+  const activeChain = useAppStore((s) => s.activeChain);
 
   return (
     <motion.div
@@ -117,11 +119,11 @@ export function TxStepCard({ state, onExecute, index = 0 }: Props) {
           )}
 
           <AnimatePresence>
-            {status === "success" && txHash && (
+            {status === "success" && txHash && /^0x[a-fA-F0-9]+$/.test(txHash) && (
               <motion.a
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
-                href={explorerUrl(step.tx?.chainId?.toString() || "1", txHash)}
+                href={explorerUrl(step.tx?.chainId?.toString() || activeChain.id, txHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 mt-1.5 text-xs text-blue-400 hover:text-blue-300"
@@ -129,6 +131,15 @@ export function TxStepCard({ state, onExecute, index = 0 }: Props) {
                 <ExternalLink className="h-3 w-3" />
                 {shortenAddress(txHash, 8)}
               </motion.a>
+            )}
+            {status === "success" && (!txHash || !/^0x[a-fA-F0-9]+$/.test(txHash)) && (
+              <motion.p
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-xs text-yellow-400 mt-1"
+              >
+                Submitted — waiting for on-chain confirmation
+              </motion.p>
             )}
 
             {status === "failed" && error && (

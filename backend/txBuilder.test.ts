@@ -18,11 +18,11 @@ describe("resolveAddress", () => {
   });
 
   it("throws for non-hex string", () => {
-    expect(() => resolveAddress("0xClearstarVaultAddressPlaceholder")).toThrow("Unknown address");
+    expect(() => resolveAddress("0xClearstarVaultAddressPlaceholder")).toThrow("Invalid address");
   });
 
   it("throws for short address", () => {
-    expect(() => resolveAddress("0x1234")).toThrow("Unknown address");
+    expect(() => resolveAddress("0x1234")).toThrow("Invalid address");
   });
 });
 

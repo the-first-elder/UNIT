@@ -332,6 +332,8 @@ const CHAIN_NAMES: Record<string, string> = {
   "137": "Polygon",
   "43114": "Avalanche",
   "56": "BSC",
+  "11155111": "Sepolia",
+  "5042002": "Arc Testnet",
 };
 
 app.post("/v1/begin", async (req: Request, res: Response) => {
