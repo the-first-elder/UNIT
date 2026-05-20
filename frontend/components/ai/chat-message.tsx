@@ -2,18 +2,15 @@
 
 import type { ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { StreamingReasoning } from "./streaming-reasoning";
 import { ExecutionGraph } from "./execution-graph";
 import { ThinkingTerminal } from "./thinking-terminal";
 import { StrategyCard } from "@/components/strategy/strategy-card";
 import { AllocationChart } from "@/components/strategy/allocation-chart";
 import { ApyChart } from "@/components/strategy/apy-chart";
 import { TxPipeline } from "@/components/transaction/tx-pipeline";
-import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
-import { Bot, User, Sparkles } from "lucide-react";
+import { User, Sparkles } from "lucide-react";
 import { useExecution } from "@/hooks/use-execution";
-import { useEffect, useRef } from "react";
 
 interface Props {
   message: ChatMessage;
@@ -26,18 +23,7 @@ export function ChatMessageBubble({ message, mode = "chat" }: Props) {
   const isUser = message.role === "user";
   const response = message.response;
   const plan = message.executionPlan;
-  const autoFired = useRef(false);
-
   // Auto-execute disabled — user must click "Sequential" or "Parallel" after reviewing steps
-  // useEffect(() => {
-  //   if (autoFired.current) return;
-  //   if (!plan || plan.isComplete) return;
-  //   if (!response?.steps || response.steps.length === 0) return;
-  //   const allPending = plan.states.every((s) => s.status === "pending");
-  //   if (!allPending) return;
-  //   autoFired.current = true;
-  //   executeAllParallel(response.steps, message.id);
-  // }, [plan, response, executeAllParallel, message.id]);
 
   if (mode === "panel" && isUser) return null;
 
@@ -72,7 +58,7 @@ export function ChatMessageBubble({ message, mode = "chat" }: Props) {
         {/* Assistant loading state */}
         {!isUser && message.isLoading && (
           <div className="w-full pb-4">
-            <ThinkingTerminal />
+            <ThinkingTerminal isBackendLoading={message.isLoading} />
           </div>
         )}
 

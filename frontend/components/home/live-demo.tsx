@@ -2,7 +2,7 @@
 
 import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
-import { Sparkles, ArrowRight, Check, ChevronRight } from "lucide-react";
+import { Sparkles, Check, ChevronRight } from "lucide-react";
 
 const demoLines = [
   { text: "UNIT analyzing: \"Turn 500 USDC into the best low-risk yield strategy\"", delay: 0, type: "prompt" },

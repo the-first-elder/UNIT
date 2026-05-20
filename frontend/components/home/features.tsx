@@ -3,7 +3,6 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Route, Shield, TrendingUp, Wallet, Cpu, GitBranch, Sparkles } from "lucide-react";
 import { useRef } from "react";
-import { ScrollReveal } from "./scroll-reveal";
 
 const features = [
   {

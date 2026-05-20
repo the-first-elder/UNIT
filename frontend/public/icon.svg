@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" fill="none">
+  <defs>
+    <linearGradient id="iconGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background glow -->
+  <rect x="10" y="10" width="140" height="140" rx="32" fill="url(#bgGrad)" opacity="0.5" />
+
+  <!-- Card background -->
+  <rect x="14" y="14" width="132" height="132" rx="28" fill="#121214" stroke="url(#iconGrad)" stroke-width="1.5" />
+
+  <!-- U shape - left pillar -->
+  <rect x="44" y="44" width="14" height="64" rx="7" fill="url(#iconGrad)" />
+
+  <!-- U shape - right pillar -->
+  <rect x="102" y="44" width="14" height="64" rx="7" fill="url(#iconGrad)" />
+
+  <!-- U shape - bottom curve -->
+  <path d="M44 96 C44 112, 56 122, 72 122" stroke="url(#iconGrad)" stroke-width="14" stroke-linecap="round" fill="none" />
+  <path d="M116 96 C116 112, 104 122, 88 122" stroke="url(#iconGrad)" stroke-width="14" stroke-linecap="round" fill="none" />
+
+  <!-- Center node -->
+  <circle cx="80" cy="84" r="6" fill="url(#iconGrad)" />
+  <circle cx="80" cy="84" r="10" fill="url(#iconGrad)" opacity="0.2" />
+  <circle cx="80" cy="84" r="15" fill="url(#iconGrad)" opacity="0.08" />
+
+  <!-- Circuit accents -->
+  <path d="M56 44 L56 36 L104 36 L104 44" stroke="url(#iconGrad)" stroke-width="2" stroke-opacity="0.25" fill="none" />
+  <circle cx="56" cy="36" r="2" fill="#3b82f6" />
+  <circle cx="104" cy="36" r="2" fill="#06b6d4" />
+</svg>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { encodeFunctionData } from "viem";
 
@@ -125,7 +126,7 @@ export async function POST(request: Request) {
       }
 
       case "getTokenBalance": {
-        const { userToken, walletId } = params;
+        const { walletId } = params;
         const response = await fetch(
           `https://api.circle.com/v1/w3s/wallets/${walletId}/balances`,
           {
@@ -147,7 +148,7 @@ export async function POST(request: Request) {
       }
 
       case "sendTransaction": {
-        const { userToken, walletId, walletAddress, to, data: txData, value, contractInfo } = params;
+        const { userToken, walletId, to, data: txData, contractInfo } = params;
         const idempotencyKey = crypto.randomUUID();
 
         const ABI_SIGNATURES: Record<string, string> = {
@@ -313,7 +314,6 @@ export async function POST(request: Request) {
 
       case "signTransaction": {
         const { userToken, walletId, transaction, memo } = params;
-        const idempotencyKey = crypto.randomUUID();
         const response = await fetch(
           "https://api.circle.com/v1/w3s/user/sign/transaction",
           {

@@ -7,6 +7,8 @@ import { ChatMessageBubble } from "@/components/ai/chat-message";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import Image from "next/image";
 import { Menu, PanelRightOpen, Sparkles, ArrowDown, Rocket, Zap, Flame, Crosshair } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
@@ -67,12 +69,12 @@ export default function AppPage() {
               <Menu className="h-4 w-4" />
             </Button>
           )}
-          <a href="/" className="flex items-center gap-2.5 group cursor-pointer">
-            <div className="h-7 w-7 rounded-lg bg-white/5 border border-white/10 backdrop-blur-md flex items-center justify-center text-[11px] font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-zinc-500 shadow-[0_0_10px_rgba(255,255,255,0.05)] group-hover:border-white/20 group-hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-all">
-              U
+          <Link href="/" className="flex items-center gap-2.5 group cursor-pointer">
+            <div className="h-7 w-7 rounded-lg bg-white/5 border border-white/10 backdrop-blur-md flex items-center justify-center shadow-[0_0_10px_rgba(255,255,255,0.05)] group-hover:border-white/20 group-hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-all overflow-hidden">
+              <Image src="/icon.svg" alt="UNIT" width={20} height={20} className="h-5 w-5" />
             </div>
             <span className="text-sm font-semibold text-zinc-200 group-hover:text-white transition-colors">UNIT Terminal</span>
-          </a>
+          </Link>
         </div>
 
         <div className="flex items-center gap-2">

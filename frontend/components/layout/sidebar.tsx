@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useAppStore } from "@/lib/store";
 import { useTheme } from "@/hooks/use-theme";
 import { WalletButton } from "@/components/wallet/wallet-button";
@@ -33,8 +34,8 @@ export function Sidebar() {
               <div className="flex items-center gap-2.5">
                 <div className="relative h-8 w-8">
                   <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 opacity-80 blur-sm" />
-                  <div className="relative h-full w-full rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm">
-                    U
+                  <div className="relative h-full w-full rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center overflow-hidden">
+                    <Image src="/icon.svg" alt="UNIT" width={24} height={24} className="h-6 w-6" />
                   </div>
                 </div>
                 <div>

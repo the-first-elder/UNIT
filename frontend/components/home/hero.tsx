@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { motion, useScroll, useTransform } from "framer-motion";
-import { Zap, ChevronDown, Globe, Shield, Gauge, Sun, Moon, ArrowRight, Activity, Cpu } from "lucide-react";
+import { Zap, ChevronDown, ArrowRight } from "lucide-react";
 import { useRef, useState } from "react";
 import { useTheme } from "@/hooks/use-theme";
 import { ParticleNetwork } from "./particle-network";
@@ -16,7 +16,7 @@ export function Hero() {
   const y = useTransform(scrollYProgress, [0, 1], [0, 150]);
   const scale = useTransform(scrollYProgress, [0, 1], [1, 0.9]);
 
-  const { theme, toggle } = useTheme();
+  useTheme();
   const [prompt, setPrompt] = useState("");
 
   const handlePromptSubmit = (e: React.FormEvent) => {

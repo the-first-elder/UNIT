@@ -1,11 +1,10 @@
 "use client";
 
-import type { ExecutionStep, TxExecutionState, TxStatus } from "@/lib/types";
+import type { ExecutionStep, TxExecutionState } from "@/lib/types";
 import { TxStepCard } from "./tx-step";
 import { Button } from "@/components/ui/button";
 import { Play, Layers, ArrowRight, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef, useMemo } from "react";
 
 interface Props {
@@ -42,13 +41,6 @@ export function TxPipeline({
   const executedCount = states.filter((s) => s.status === "success" || s.status === "failed").length;
   const totalCount = states.length;
   const progressPct = totalCount > 0 ? Math.round((executedCount / totalCount) * 100) : 0;
-
-  const rowVirtualizer = useVirtualizer({
-    count: validSteps.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 120,
-    overscan: 5,
-  });
 
   if (!hasSteps) return null;
 

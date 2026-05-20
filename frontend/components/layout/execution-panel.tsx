@@ -3,11 +3,9 @@
 import { useAppStore } from "@/lib/store";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ChatMessageBubble } from "@/components/ai/chat-message";
-import { X, PanelRightClose, Activity, TrendingUp, Shield, Wallet } from "lucide-react";
+import { X, PanelRightClose, Activity, TrendingUp, Shield } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function ExecutionPanel() {
