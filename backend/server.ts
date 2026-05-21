@@ -298,7 +298,10 @@ async function encodeSteps(
       const txReq =
         quoteData.transactionRequest || quoteData.estimate?.transactionRequest;
       if (!txReq) {
-        return { ...o, error: "LI.FI quote did not include transactionRequest data" };
+        return {
+          ...o,
+          error: "LI.FI quote did not include transactionRequest data",
+        };
       }
       o.tx = {
         to: txReq.to,
@@ -343,12 +346,10 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
   if (!userWallet) missing.push("userWallet");
   if (!chainId) missing.push("chainId");
   if (missing.length) {
-    res
-      .status(400)
-      .json({
-        message: `Missing required fields: ${missing.join(", ")}`,
-        status: 400,
-      });
+    res.status(400).json({
+      message: `Missing required fields: ${missing.join(", ")}`,
+      status: 400,
+    });
     return;
   }
   const chainIdStr = String(chainId);
@@ -381,7 +382,10 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
         .split("\n")
         .filter((line) => !/^\s*\/\//.test(line))
         .join("\n");
-      const jsonStr = clean.startsWith("{") || clean.startsWith("[") ? clean : clean.replace(/^[^{[]+/, "");
+      const jsonStr =
+        clean.startsWith("{") || clean.startsWith("[")
+          ? clean
+          : clean.replace(/^[^{[]+/, "");
       try {
         let parsed = JSON.parse(jsonStr);
         if (userWallet) parsed = replaceUserAddress(parsed, userWallet);
@@ -535,20 +539,43 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
           }
         }
       } catch (err) {
-        console.warn("Failed to parse/encode AI response, sending raw result:", err);
+        console.warn(
+          "Failed to parse/encode AI response, sending raw result:",
+          err,
+        );
       }
     } else if (result === null || result === undefined) {
       console.warn("AI returned null/undefined response");
-      responseData = { error: "AI returned empty response", raw: String(result ?? "") };
+      responseData = {
+        error: "AI returned empty response",
+        raw: String(result ?? ""),
+      };
     }
 
     if (responseData === null || responseData === undefined) {
-      responseData = { error: "Empty response from AI", raw: String(result ?? "") };
+      responseData = {
+        error: "Empty response from AI",
+        raw: String(result ?? ""),
+      };
     }
 
     if (typeof responseData === "string") {
-      console.warn("responseData is still a raw string — wrapping in fallback object");
-      responseData = { strategy: { summary: responseData.slice(0, 200), reasoning: "", risk_level: "moderate" as const, estimated_apy: "", protocol: "", realistic_expectation_note: "" }, options: [], allocations: [], steps: [] };
+      console.warn(
+        "responseData is still a raw string — wrapping in fallback object",
+      );
+      responseData = {
+        strategy: {
+          summary: responseData.slice(0, 200),
+          reasoning: "",
+          risk_level: "moderate" as const,
+          estimated_apy: "",
+          protocol: "",
+          realistic_expectation_note: "",
+        },
+        options: [],
+        allocations: [],
+        steps: [],
+      };
     }
 
     console.log("response:", responseData);
@@ -566,4 +593,5 @@ app.use((_req: Request, res: Response) => {
     .json({ message: "Unknown endpoint. Use POST /v1/begin", status: 404 });
 });
 
-start();
+// start();
+export default app;
