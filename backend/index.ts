@@ -57,7 +57,14 @@ export class MCPClient {
           name: `mcp-${cfg.name}`,
           version: "1.0.0",
         });
-        await client.connect(transport);
+
+        const connectTimeout = new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Timeout connecting to ${cfg.name}`)),
+            8000,
+          ),
+        );
+        await Promise.race([client.connect(transport), connectTimeout]);
 
         const toolsResult = await client.listTools();
         const serverTools = toolsResult.tools
@@ -126,6 +133,17 @@ export class MCPClient {
       { role: "user", content: query },
     ];
 
+    if (this.tools.length === 0) {
+      console.warn(
+        "No tools registered — AI will have no function-calling capability",
+      );
+    } else {
+      console.log(
+        `AI has ${this.tools.length} tools available:`,
+        this.tools.map((t) => t.name),
+      );
+    }
+
     let response:
       | (OpenAI.Responses.Response & { _request_id?: string | null })
       | undefined;
@@ -156,8 +174,35 @@ export class MCPClient {
             )
             .join("\n") ||
           "";
+
         console.log("Final Answer:", text);
+
         if (!text) {
+          const reasoningItems = response.output?.filter(
+            (item) => item.type === "reasoning",
+          );
+          const reasoningText = reasoningItems
+            ?.flatMap(
+              (item) =>
+                (
+                  item as {
+                    content?: Array<{ type?: string; text?: string }>;
+                  }
+                ).content?.map((c) => c.text || "") || [],
+            )
+            .join("\n");
+
+          if (reasoningText) {
+            console.warn(
+              "Model returned only reasoning, requesting JSON output",
+            );
+            systemMessages.push({
+              role: "user",
+              content: `Based on your reasoning above, output ONLY valid JSON with this structure: {"strategy":{"summary":"","reasoning":"","risk_level":"low|moderate|high","estimated_apy":"","protocol":"","realistic_expectation_note":""},"options":[],"allocations":[],"steps":[]}. No markdown, no extra text, no comments, no backticks. Raw JSON only. If no execution plan is possible, explain why in strategy.reasoning and leave steps empty.`,
+            });
+            continue;
+          }
+
           console.warn(
             "Empty output_text, full response:",
             JSON.stringify(response).slice(0, 500),
