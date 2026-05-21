@@ -14,7 +14,6 @@
   "license": "ISC",
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^10.3.1",
-    "@lazydino/ccxt-mcp": "^0.4.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",

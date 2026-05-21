@@ -16,6 +16,7 @@ export class MCPClient {
     servers = new Map();
     tools = [];
     toolToServer = new Map();
+    localHandlers = new Map();
     async connectToServers(configs) {
         const results = await Promise.all(configs.map(async (cfg) => {
             const transport = "url" in cfg
@@ -56,6 +57,20 @@ export class MCPClient {
             console.log(`Connected to "${name}" with tools:`, serverTools.map(({ name: n }) => n));
         }
     }
+    async addLocalTools(serverName, tools, handler) {
+        for (const t of tools) {
+            this.tools.push({
+                type: "function",
+                name: t.name,
+                description: t.description,
+                parameters: t.inputSchema,
+                strict: false,
+            });
+            this.toolToServer.set(t.name, serverName);
+        }
+        this.localHandlers.set(serverName, handler);
+        console.log(`Registered local tools:`, tools.map(({ name: n }) => n));
+    }
     async processQuery(query) {
         const maxIterations = parseInt(process.env.AI_MAX_ITERATIONS ?? "10", 10);
         const systemMessages = [
@@ -88,13 +103,7 @@ export class MCPClient {
             }
             console.log("Calling tools:", toolCalls.map((tc) => tc.name));
             const results = await Promise.all(toolCalls.map(async (tc) => {
-                const client = this.servers.get(this.toolToServer.get(tc.name) ?? "");
-                if (!client)
-                    return {
-                        tc,
-                        call_id: tc.call_id,
-                        output: JSON.stringify({ error: `No server for: ${tc.name}` }),
-                    };
+                const serverName = this.toolToServer.get(tc.name) ?? "";
                 let args;
                 try {
                     args = JSON.parse(tc.arguments);
@@ -106,6 +115,33 @@ export class MCPClient {
                         output: JSON.stringify({ error: "Failed to parse arguments" }),
                     };
                 }
+                const localHandler = serverName ? this.localHandlers.get(serverName) : undefined;
+                if (localHandler) {
+                    try {
+                        const result = await localHandler(tc.name, args);
+                        const MAX_OUTPUT = 4000;
+                        let output = JSON.stringify(result);
+                        if (output.length > MAX_OUTPUT)
+                            output =
+                                output.slice(0, MAX_OUTPUT) +
+                                    `\n... [truncated ${output.length - MAX_OUTPUT} more chars]`;
+                        return { tc, call_id: tc.call_id, output };
+                    }
+                    catch (err) {
+                        return {
+                            tc,
+                            call_id: tc.call_id,
+                            output: JSON.stringify({ error: String(err) }),
+                        };
+                    }
+                }
+                const client = this.servers.get(serverName);
+                if (!client)
+                    return {
+                        tc,
+                        call_id: tc.call_id,
+                        output: JSON.stringify({ error: `No server for: ${tc.name}` }),
+                    };
                 try {
                     const result = await client.callTool({
                         name: tc.name,

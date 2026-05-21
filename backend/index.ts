@@ -6,6 +6,7 @@ import type {
   FunctionTool,
   ResponseFunctionToolCall,
 } from "openai/resources/responses/responses";
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import dotenv from "dotenv";
 import { SYSTEM_PROMPT } from "./agent.js";
 
@@ -27,6 +28,10 @@ export class MCPClient {
   private servers: Map<string, Client> = new Map();
   private tools: FunctionTool[] = [];
   private toolToServer: Map<string, string> = new Map();
+  private localHandlers: Map<
+    string,
+    (name: string, args: Record<string, unknown>) => Promise<unknown>
+  > = new Map();
 
   async connectToServers(configs: ServerConfig[]) {
     const results = await Promise.all(
@@ -84,6 +89,31 @@ export class MCPClient {
     }
   }
 
+  async addLocalTools(
+    serverName: string,
+    tools: Tool[],
+    handler: (
+      name: string,
+      args: Record<string, unknown>,
+    ) => Promise<{ content: Array<{ type: string; text?: string }>; isError?: boolean }>,
+  ) {
+    for (const t of tools) {
+      this.tools.push({
+        type: "function" as const,
+        name: t.name,
+        description: t.description,
+        parameters: t.inputSchema as Record<string, unknown>,
+        strict: false,
+      });
+      this.toolToServer.set(t.name, serverName);
+    }
+    this.localHandlers.set(serverName, handler);
+    console.log(
+      `Registered local tools:`,
+      tools.map(({ name: n }) => n),
+    );
+  }
+
   async processQuery(query: string) {
     const maxIterations = parseInt(process.env.AI_MAX_ITERATIONS ?? "10", 10);
     const systemMessages: any[] = [
@@ -138,13 +168,7 @@ export class MCPClient {
 
       const results = await Promise.all(
         toolCalls.map(async (tc) => {
-          const client = this.servers.get(this.toolToServer.get(tc.name) ?? "");
-          if (!client)
-            return {
-              tc,
-              call_id: tc.call_id,
-              output: JSON.stringify({ error: `No server for: ${tc.name}` }),
-            };
+          const serverName = this.toolToServer.get(tc.name) ?? "";
 
           let args: Record<string, unknown>;
           try {
@@ -156,6 +180,34 @@ export class MCPClient {
               output: JSON.stringify({ error: "Failed to parse arguments" }),
             };
           }
+
+          const localHandler = serverName ? this.localHandlers.get(serverName) : undefined;
+          if (localHandler) {
+            try {
+              const result = await localHandler(tc.name, args);
+              const MAX_OUTPUT = 4000;
+              let output = JSON.stringify(result);
+              if (output.length > MAX_OUTPUT)
+                output =
+                  output.slice(0, MAX_OUTPUT) +
+                  `\n... [truncated ${output.length - MAX_OUTPUT} more chars]`;
+              return { tc, call_id: tc.call_id, output };
+            } catch (err) {
+              return {
+                tc,
+                call_id: tc.call_id,
+                output: JSON.stringify({ error: String(err) }),
+              };
+            }
+          }
+
+          const client = this.servers.get(serverName);
+          if (!client)
+            return {
+              tc,
+              call_id: tc.call_id,
+              output: JSON.stringify({ error: `No server for: ${tc.name}` }),
+            };
 
           try {
             const result = await client.callTool({

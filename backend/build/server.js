@@ -2,6 +2,7 @@ import { MCPClient } from "./index.js";
 import { encodeIntent, } from "./txBuilder.js";
 import cors from "cors";
 import express from "express";
+import { DEFI_YIELD_TOOLS, callDefiYieldTool } from "./defiYieldTools.js";
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -12,14 +13,8 @@ const serverConfigs = [
         url: "https://mcp.li.quest/mcp",
         headers: { "X-LiFi-Api-Key": process.env.LIFI_API_KEY ?? "" },
     },
-    { name: "defi-yield", command: "python", args: ["-m", "defi_yield_mcp"] },
     { name: "defiborrow", url: "https://defiborrow.loan/mcp" },
     { name: "coingecko", url: "https://mcp.api.coingecko.com/mcp" },
-    {
-        name: "ccxt",
-        command: "node",
-        args: ["./node_modules/@lazydino/ccxt-mcp/bin/ccxt-mcp.js"],
-    },
     {
         name: "hive-sentiment",
         url: "https://mcp.hiveintelligence.xyz/mcp",
@@ -30,8 +25,11 @@ const serverConfigs = [
 async function start() {
     try {
         await mcpClient.connectToServers(serverConfigs);
+        await mcpClient.addLocalTools("defi-yield", DEFI_YIELD_TOOLS, callDefiYieldTool);
         const PORT = parseInt(process.env.PORT ?? "3001", 10);
-        app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+        if (process.env.VERCEL !== "1") {
+            app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+        }
     }
     catch (e) {
         console.error("Failed to start:", e);
@@ -498,5 +496,5 @@ app.use((_req, res) => {
         .status(404)
         .json({ message: "Unknown endpoint. Use POST /v1/begin", status: 404 });
 });
-// start();
+start().catch((e) => console.error("Init failed:", e));
 export default app;
