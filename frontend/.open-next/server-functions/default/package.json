@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "cf-build": "npx @opennextjs/cloudflare build && cp .open-next/worker.js .open-next/_worker.js"
+    "cf-build": "npx @opennextjs/cloudflare build && cp .open-next/worker.js .open-next/_worker.js && cp -r .open-next/assets/* .open-next/"
   },
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^10.3.1",
