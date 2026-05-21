@@ -50,6 +50,32 @@ async function start() {
   }
 }
 
+let initDone = false;
+let initError: string | null = null;
+start()
+  .then(() => {
+    initDone = true;
+    console.log("Server initialization complete");
+  })
+  .catch((e) => {
+    initError = e instanceof Error ? e.message : String(e);
+    console.error("Init failed:", e);
+  });
+
+app.use((_req: Request, _res: Response, next: () => void) => {
+  if (initDone) return next();
+  if (initError) {
+    console.warn("Init had errors, proceeding anyway:", initError);
+    initDone = true;
+    return next();
+  }
+  setImmediate(() => {
+    if (initDone) return next();
+    initDone = true;
+    next();
+  });
+});
+
 // Cache for find_best_yield results — reset per request
 let yieldsCache: Array<{
   platform: string;
@@ -595,5 +621,4 @@ app.use((_req: Request, res: Response) => {
     .json({ message: "Unknown endpoint. Use POST /v1/begin", status: 404 });
 });
 
-// start().catch((e) => console.error("Init failed:", e));
 export default app;
