@@ -18,13 +18,18 @@ export function ExecutionPanel() {
   return (
     <AnimatePresence mode="wait">
       {executionPanelOpen && (
-        <motion.aside
-          initial={{ x: "100%", opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: "100%", opacity: 0 }}
-          transition={{ duration: 0.25, ease: "easeInOut" }}
-          className="fixed right-0 top-0 z-50 h-full w-full sm:w-[380px] border-l border-border bg-background/95 backdrop-blur-xl shadow-2xl flex flex-col"
-        >
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm lg:hidden"
+            onClick={() => setExecutionPanelOpen(false)}
+          />
+          <motion.aside
+            initial={{ x: "100%", opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: "100%", opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="fixed right-0 top-0 z-50 h-full w-full sm:w-[380px] border-l border-border bg-background/95 backdrop-blur-xl shadow-2xl flex flex-col"
+          >
           <div className="flex flex-col h-full w-full">
             <div className="flex items-center justify-between p-4 border-b border-border">
               <div className="flex items-center gap-2">
@@ -83,7 +88,7 @@ export function ExecutionPanel() {
             </div>
           </div>
         </motion.aside>
-      )}
+      </>)}
     </AnimatePresence>
   );
 }

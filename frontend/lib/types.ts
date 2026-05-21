@@ -100,3 +100,14 @@ export const SUPPORTED_CHAINS: ChainConfig[] = [
   { id: "11155111", name: "Sepolia", shortName: "ETH", icon: "🧪" },
   { id: "5042002", name: "Arc Testnet", shortName: "ARC", icon: "🧪" },
 ];
+
+export interface ActivePosition {
+  id: string;
+  name: string;
+  protocol: string;
+  apy: string;
+  amount: string;
+  status: "active" | "completed";
+  chain: string;
+  timestamp: number;
+}

@@ -22,13 +22,18 @@ export function Sidebar() {
   return (
     <AnimatePresence mode="wait">
       {sidebarOpen && (
-        <motion.aside
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 240, opacity: 1 }}
-          exit={{ width: 0, opacity: 0 }}
-          transition={{ duration: 0.2, ease: "easeInOut" }}
-          className="fixed left-0 top-0 z-40 h-full border-r border-border bg-background/95 backdrop-blur-xl overflow-hidden"
-        >
+        <>
+          <div
+            className="fixed inset-0 z-30 bg-background/60 backdrop-blur-sm lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <motion.aside
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 240, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="fixed left-0 top-0 z-40 h-full border-r border-border bg-background/95 backdrop-blur-xl overflow-hidden"
+          >
           <div className="flex h-full flex-col w-[240px]">
             <div className="flex items-center justify-between p-4">
               <div className="flex items-center gap-2.5">
@@ -84,7 +89,7 @@ export function Sidebar() {
             </div>
           </div>
         </motion.aside>
-      )}
+      </>)}
     </AnimatePresence>
   );
 }

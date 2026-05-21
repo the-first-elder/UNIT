@@ -6,6 +6,7 @@ import type {
   ChainConfig,
   TxExecutionState,
   TxStatus,
+  ActivePosition,
 } from "./types";
 
 type WalletType = "passkey" | "social" | null;
@@ -19,6 +20,7 @@ interface AppState {
   executionPanelOpen: boolean;
   walletAddress: string | null;
   walletType: WalletType;
+  activePositions: ActivePosition[];
 
   addMessage: (msg: ChatMessage) => void;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
@@ -28,6 +30,8 @@ interface AppState {
   setExecutionPanelOpen: (v: boolean) => void;
   setWallet: (address: string | null, type: WalletType) => void;
   updateExecutionState: (messageId: string, step: number, status: TxStatus, hash?: `0x${string}`, error?: string) => void;
+  addActivePosition: (pos: ActivePosition) => void;
+  removeActivePosition: (id: string) => void;
   resetExecution: () => void;
   clearMessages: () => void;
 }
@@ -41,6 +45,7 @@ export const useAppStore = create<AppState>((set) => ({
   executionPanelOpen: true,
   walletAddress: null,
   walletType: null,
+  activePositions: [],
 
   addMessage: (msg) =>
     set((s) => ({ messages: [...s.messages, msg] })),
@@ -93,6 +98,12 @@ export const useAppStore = create<AppState>((set) => ({
         messages: nextMessages,
       };
     }),
+
+  addActivePosition: (pos) =>
+    set((s) => ({ activePositions: [pos, ...s.activePositions] })),
+
+  removeActivePosition: (id) =>
+    set((s) => ({ activePositions: s.activePositions.filter((p) => p.id !== id) })),
 
   resetExecution: () => set({ executionStates: new Map() }),
 

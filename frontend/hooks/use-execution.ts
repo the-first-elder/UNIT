@@ -3,7 +3,7 @@
 import { useCallback, useState, useRef } from "react";
 import { useAppStore } from "@/lib/store";
 import { useSocialWallet } from "@/components/wallet/wallet-context";
-import type { ExecutionStep } from "@/lib/types";
+import type { ExecutionStep, ActivePosition } from "@/lib/types";
 
 export interface ReputationRecord {
   txHash?: string;
@@ -29,6 +29,23 @@ async function recordExecutionResult(
   } catch {
     // fire-and-forget — don't block UX
   }
+}
+
+// Record a DeFi position into the global store after a successful execution
+function checkAndRecordPosition(step: ExecutionStep, txHash: string) {
+  const { addActivePosition } = useAppStore.getState();
+  const id = `${txHash}-${step.step}`;
+  const position: ActivePosition = {
+    id,
+    name: step.action,
+    protocol: step.strategy ?? step.chain,
+    apy: step.strategy ?? "",
+    amount: step.tx?.value ?? "0",
+    status: "active",
+    chain: step.chain,
+    timestamp: Date.now(),
+  };
+  addActivePosition(position);
 }
 
 export function useExecution() {
@@ -63,6 +80,7 @@ export function useExecution() {
         if (txHash) {
           updateExecutionState(messageId, step.step, "success", txHash as `0x${string}`);
           recordExecutionResult([{ success: true, tag: step.action }], setReputationTx);
+          checkAndRecordPosition(step, txHash);
         } else {
           // Challenge was approved but no on-chain confirmation yet — keep as executing
           recordExecutionResult([{ success: false, tag: step.action }], setReputationTx);
@@ -123,6 +141,7 @@ export function useExecution() {
             if (txHash) {
               updateExecutionState(messageId, step.step, "success", txHash as `0x${string}`);
               stepResults.push({ success: true, tag: step.action });
+              checkAndRecordPosition(step, txHash);
             }
           } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Transaction failed";
@@ -183,6 +202,7 @@ export function useExecution() {
           for (const step of valid) {
             updateExecutionState(messageId, step.step, "success", txHash as `0x${string}`);
             stepResults.push({ success: true, tag: step.action });
+            checkAndRecordPosition(step, txHash);
           }
         } else {
           for (const step of valid) {
