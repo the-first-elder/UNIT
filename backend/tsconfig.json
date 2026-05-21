@@ -10,6 +10,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["index.ts", "server.ts", "defiYieldTools.ts", "lifiTools.ts"],
+  "include": ["index.ts", "server.ts", "defiYieldTools.ts", "lifiTools.ts", "defiborrowTools.ts", "coingeckoTools.ts"],
   "exclude": ["node_modules"]
 }

@@ -4,20 +4,13 @@ import cors from "cors";
 import express from "express";
 import { DEFI_YIELD_TOOLS, callDefiYieldTool } from "./defiYieldTools.js";
 import { LIFI_TOOLS, callLifiTool, lifiGetToken, lifiGetQuote } from "./lifiTools.js";
+import { DEFIBORROW_TOOLS, callDefiborrowTool } from "./defiborrowTools.js";
+import { COINGECKO_TOOLS, callCoingeckoTool } from "./coingeckoTools.js";
 const app = express();
 app.use(cors());
 app.use(express.json());
 const mcpClient = new MCPClient();
-const serverConfigs = [
-    { name: "defiborrow", url: "https://defiborrow.loan/mcp" },
-    { name: "coingecko", url: "https://mcp.api.coingecko.com/mcp" },
-    {
-        name: "hive-sentiment",
-        url: "https://mcp.hiveintelligence.xyz/mcp",
-        headers: { Authorization: `Bearer ${process.env.HIVE_API_KEY ?? ""}` },
-    },
-    { name: "philidor", url: "https://mcp.philidor.io/api/mcp" },
-];
+const serverConfigs = [];
 async function start() {
     const errors = [];
     try {
@@ -29,6 +22,8 @@ async function start() {
     try {
         await mcpClient.addLocalTools("defi-yield", DEFI_YIELD_TOOLS, callDefiYieldTool);
         await mcpClient.addLocalTools("lifi", LIFI_TOOLS, callLifiTool);
+        await mcpClient.addLocalTools("defiborrow", DEFIBORROW_TOOLS, callDefiborrowTool);
+        await mcpClient.addLocalTools("coingecko", COINGECKO_TOOLS, callCoingeckoTool);
     }
     catch (e) {
         errors.push(`addLocalTools: ${e instanceof Error ? e.message : String(e)}`);
@@ -70,15 +65,14 @@ app.use((_req, _res, next) => {
 let yieldsCache = null;
 let yieldsChain = "Ethereum";
 let yieldsAsset = "USDC";
-async function getYields(defiborrowClient) {
-    if (yieldsCache)
+async function getYields(useCache = true) {
+    if (useCache && yieldsCache)
         return yieldsCache;
-    if (!defiborrowClient)
-        return [];
     try {
-        const result = await defiborrowClient.callTool({
-            name: "find_best_yield",
-            arguments: { asset: yieldsAsset, chain: yieldsChain, top_n: 10 },
+        const result = await callDefiborrowTool("find_best_yield", {
+            asset: yieldsAsset,
+            chain: yieldsChain,
+            top_n: 10,
         });
         const text = (result.content || [])
             .map((c) => c.text)
@@ -94,8 +88,8 @@ async function getYields(defiborrowClient) {
     }
     return yieldsCache;
 }
-async function resolveVaultAddress(vaultName, defiborrowClient) {
-    const yields = await getYields(defiborrowClient);
+async function resolveVaultAddress(vaultName) {
+    const yields = await getYields();
     if (!yields || !yields.length)
         return null;
     const nameLower = vaultName.toLowerCase();
@@ -130,14 +124,14 @@ function replaceUserAddress(obj, addr) {
     return obj;
 }
 const isValidHexAddr = (s) => /^0x[a-fA-F0-9]{40}$/.test(s);
-async function resolveStepAddress(address, vaultName, defiborrowClient) {
+async function resolveStepAddress(address, vaultName) {
     if (isValidHexAddr(address))
         return null;
-    return resolveVaultAddress(vaultName, defiborrowClient);
+    return resolveVaultAddress(vaultName);
 }
-async function encodeSteps(obj, defiborrowClient, userAddress, chainId) {
+async function encodeSteps(obj, userAddress, chainId) {
     if (Array.isArray(obj))
-        return Promise.all(obj.map((item) => encodeSteps(item, defiborrowClient, userAddress, chainId)));
+        return Promise.all(obj.map((item) => encodeSteps(item, userAddress, chainId)));
     if (!obj || typeof obj !== "object")
         return obj;
     const o = obj;
@@ -166,12 +160,12 @@ async function encodeSteps(obj, defiborrowClient, userAddress, chainId) {
                 args: o.args ?? {},
             };
             const vaultName = o.description || o.protocol || "";
-            const resolvedAddr = await resolveStepAddress(intent.contractAddress, vaultName, defiborrowClient);
+            const resolvedAddr = await resolveStepAddress(intent.contractAddress, vaultName);
             if (resolvedAddr)
                 intent.contractAddress = resolvedAddr;
             for (const [key, val] of Object.entries(intent.args)) {
                 if (typeof val === "string" && !isValidHexAddr(val)) {
-                    const resolved = await resolveStepAddress(val, vaultName, defiborrowClient);
+                    const resolved = await resolveStepAddress(val, vaultName);
                     if (resolved)
                         intent.args[key] = resolved;
                 }
@@ -206,7 +200,7 @@ async function encodeSteps(obj, defiborrowClient, userAddress, chainId) {
                 resolveToken(toSymbol),
             ]);
             if (!toAddr) {
-                const vaultAddr = await resolveVaultAddress(toSymbol, defiborrowClient);
+                const vaultAddr = await resolveVaultAddress(toSymbol);
                 if (vaultAddr) {
                     const intent = {
                         contractType: "erc4626",
@@ -264,7 +258,7 @@ async function encodeSteps(obj, defiborrowClient, userAddress, chainId) {
     }
     const encoded = {};
     for (const [k, v] of Object.entries(o))
-        encoded[k] = await encodeSteps(v, defiborrowClient, userAddress, chainId);
+        encoded[k] = await encodeSteps(v, userAddress, chainId);
     return encoded;
 }
 const CHAIN_NAMES = {
@@ -319,8 +313,7 @@ app.post("/v1/begin", async (req, res) => {
                 let parsed = JSON.parse(jsonStr);
                 if (userWallet)
                     parsed = replaceUserAddress(parsed, userWallet);
-                const defiborrowClient = mcpClient.getServer("defiborrow");
-                responseData = await encodeSteps(parsed, defiborrowClient, userWallet, String(chainId));
+                responseData = await encodeSteps(parsed, userWallet, String(chainId));
                 const steps = responseData?.steps;
                 if (steps) {
                     for (let i = 0; i < steps.length; i++) {
