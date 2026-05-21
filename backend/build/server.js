@@ -6,6 +6,9 @@ import { DEFI_YIELD_TOOLS, callDefiYieldTool } from "./defiYieldTools.js";
 import { LIFI_TOOLS, callLifiTool, lifiGetToken, lifiGetQuote } from "./lifiTools.js";
 import { DEFIBORROW_TOOLS, callDefiborrowTool } from "./defiborrowTools.js";
 import { COINGECKO_TOOLS, callCoingeckoTool } from "./coingeckoTools.js";
+import { CCXT_TOOLS, callCcxtTool } from "./ccxtTools.js";
+import { PHILIDOR_TOOLS, callPhilidorTool } from "./philidorTools.js";
+import { HIVE_TOOLS, callHiveTool } from "./hiveTools.js";
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -24,6 +27,9 @@ async function start() {
         await mcpClient.addLocalTools("lifi", LIFI_TOOLS, callLifiTool);
         await mcpClient.addLocalTools("defiborrow", DEFIBORROW_TOOLS, callDefiborrowTool);
         await mcpClient.addLocalTools("coingecko", COINGECKO_TOOLS, callCoingeckoTool);
+        await mcpClient.addLocalTools("ccxt", CCXT_TOOLS, callCcxtTool);
+        await mcpClient.addLocalTools("philidor", PHILIDOR_TOOLS, callPhilidorTool);
+        await mcpClient.addLocalTools("hive", HIVE_TOOLS, callHiveTool);
     }
     catch (e) {
         errors.push(`addLocalTools: ${e instanceof Error ? e.message : String(e)}`);

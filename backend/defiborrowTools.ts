@@ -86,7 +86,7 @@ export const DEFIBORROW_TOOLS: Tool[] = [
   {
     name: "get_lending_rates",
     description:
-      "Get lending rates (supply APY) for a given asset across Aave, Spark, Compound, and other lending protocols.",
+      "Get lending rates (supply APY) for a given asset across all available protocols on a chain.",
     inputSchema: {
       type: "object",
       properties: {
@@ -164,23 +164,22 @@ async function handleFindBestYield(
 
   const pools = await fetchPools();
 
-  const lendingProjects = new Set([
-    "aave-v3", "compound", "compound-v3", "spark",
-    "morpho", "yearn", "euler", "flux-finance",
-    "granary", "radiant-v2", "silo-finance",
-  ]);
+  const byChain = chain
+    ? pools.filter((p) => p.chain?.toLowerCase() === chain)
+    : pools;
 
-  const filtered = pools.filter((p) => {
-    if (!p.symbol.toUpperCase().includes(asset) && !asset.includes(p.symbol.toUpperCase())) return false;
-    if (p.chain?.toLowerCase() !== chain) return false;
-    if (!lendingProjects.has(p.project?.toLowerCase() ?? "")) return false;
-    if (p.outlier) return false;
-    return true;
-  });
+  const byAsset = asset
+    ? byChain.filter(
+        (p) =>
+          p.symbol.toUpperCase().includes(asset) ||
+          asset.includes(p.symbol.toUpperCase()),
+      )
+    : byChain;
 
-  filtered.sort((a, b) => (b.apy || 0) - (a.apy || 0));
+  const withoutOutliers = byAsset.filter((p) => !p.outlier);
+  const sorted = withoutOutliers.sort((a, b) => (b.apy || 0) - (a.apy || 0));
 
-  const bestYields = filtered.slice(0, topN).map((p) => {
+  const bestYields = sorted.slice(0, topN).map((p) => {
     const url = poolUrl(p);
     return {
       platform: p.project,
@@ -191,10 +190,46 @@ async function handleFindBestYield(
       apyBase: p.apyBase,
       apyReward: p.apyReward,
       stablecoin: p.stablecoin,
+      chain: p.chain,
     };
   });
 
-  const text = JSON.stringify({ best_yields: bestYields, count: bestYields.length, chain, asset }, null, 2);
+  if (!bestYields.length) {
+    const globalTop = pools
+      .filter((p) => !p.outlier)
+      .sort((a, b) => (b.apy || 0) - (a.apy || 0))
+      .slice(0, topN)
+      .map((p) => ({
+        platform: p.project,
+        url: poolUrl(p),
+        supply_apy: p.apy?.toFixed(2),
+        symbol: p.symbol,
+        tvlUsd: p.tvlUsd,
+        apyBase: p.apyBase,
+        apyReward: p.apyReward,
+        stablecoin: p.stablecoin,
+        chain: p.chain,
+      }));
+
+    const text = JSON.stringify(
+      {
+        best_yields: globalTop,
+        count: 0,
+        chain,
+        asset,
+        note: `No pools found for ${chain}/${asset}. Showing top ${topN} global pools for reference.`,
+      },
+      null,
+      2,
+    );
+    return { content: [{ type: "text", text }] };
+  }
+
+  const text = JSON.stringify(
+    { best_yields: bestYields, count: bestYields.length, chain, asset },
+    null,
+    2,
+  );
   return { content: [{ type: "text", text }] };
 }
 
@@ -206,23 +241,23 @@ async function handleGetLendingRates(
 
   const pools = await fetchPools();
 
-  const lendingProjects = new Set([
-    "aave-v3", "compound", "compound-v3", "spark",
-    "morpho", "yearn", "euler", "flux-finance",
-    "granary", "radiant-v2", "silo-finance",
-  ]);
-
-  const filtered = pools.filter((p) => {
-    if (!p.symbol.toUpperCase().includes(asset) && !asset.includes(p.symbol.toUpperCase())) return false;
-    if (p.chain?.toLowerCase() !== chain) return false;
-    if (!lendingProjects.has(p.project?.toLowerCase() ?? "")) return false;
-    if (p.outlier) return false;
-    return true;
-  });
+  let filtered = pools;
+  if (asset) {
+    filtered = filtered.filter(
+      (p) =>
+        p.symbol.toUpperCase().includes(asset) ||
+        asset.includes(p.symbol.toUpperCase()),
+    );
+  }
+  if (chain) {
+    filtered = filtered.filter((p) => p.chain?.toLowerCase() === chain);
+  }
+  filtered = filtered.filter((p) => !p.outlier);
 
   filtered.sort((a, b) => (b.tvlUsd || 0) - (a.tvlUsd || 0));
+  const top = filtered.slice(0, 30);
 
-  const rates = filtered.map((p) => ({
+  const rates = top.map((p) => ({
     protocol: p.project,
     asset: p.symbol,
     supply_apy: p.apy?.toFixed(2),
@@ -230,6 +265,7 @@ async function handleGetLendingRates(
     supply_apy_reward: p.apyReward?.toFixed(2),
     tvlUsd: p.tvlUsd,
     stablecoin: p.stablecoin,
+    chain: p.chain,
     url: poolUrl(p),
   }));
 
@@ -244,23 +280,13 @@ async function handleGetEarnMarkets(
 
   const pools = await fetchPools();
 
-  const earnProjects = new Set([
-    "aave-v3", "compound", "compound-v3", "spark",
-    "morpho", "yearn", "euler", "flux-finance",
-    "granary", "radiant-v2", "silo-finance", "curve",
-    "balancer", "convex", "aura-finance",
-  ]);
+  const byChain = chain
+    ? pools.filter((p) => p.chain?.toLowerCase() === chain && !p.outlier)
+    : pools.filter((p) => !p.outlier);
 
-  const filtered = pools.filter((p) => {
-    if (p.chain?.toLowerCase() !== chain) return false;
-    if (!earnProjects.has(p.project?.toLowerCase() ?? "")) return false;
-    if (p.outlier) return false;
-    return true;
-  });
+  byChain.sort((a, b) => (b.apy || 0) - (a.apy || 0));
 
-  filtered.sort((a, b) => (b.apy || 0) - (a.apy || 0));
-
-  const markets = filtered.slice(0, 50).map((p) => ({
+  const markets = byChain.slice(0, 50).map((p) => ({
     platform: p.project,
     asset: p.symbol,
     supply_apy: p.apy?.toFixed(2),
