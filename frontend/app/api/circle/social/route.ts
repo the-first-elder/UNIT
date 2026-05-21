@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { encodeFunctionData } from "viem";
 
+export const runtime = "edge";
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();

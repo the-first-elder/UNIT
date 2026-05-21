@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { createPublicClient, http, parseAbiItem, keccak256, toHex } from "viem";
 
+export const runtime = "edge";
 
 // ── Config ──────────────────────────────────────────────────────────
 
