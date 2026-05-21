@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
   webpack: (config) => {
+    config.cache = false;
     config.resolve.fallback = {
       ...config.resolve.fallback,
       "@react-native-async-storage/async-storage": false,
