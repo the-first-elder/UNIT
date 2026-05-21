@@ -1,13 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 import { createPublicClient, http, parseAbiItem, keccak256, toHex } from "viem";
-import { initiateDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
+
 
 // ── Config ──────────────────────────────────────────────────────────
 
 const API_KEY = process.env.CIRCLE_API_KEY || "";
-const ENTITY_SECRET = process.env.CIRCLE_ENTITY_SECRET || "";
 const ARC_RPC = process.env.ARC_RPC_URL || "https://rpc.testnet.arc.network";
 
 const IDENTITY_REGISTRY = "0x8004A818BFB912233c491871b3d84c89A494BD9e" as const;
@@ -21,10 +19,26 @@ const ERC8004_AGENT_ID = process.env.ERC8004_AGENT_ID || "";
 const ERC8004_VALIDATOR_WALLET_ID =
   process.env.ERC8004_VALIDATOR_WALLET_ID || "";
 
-const circleClient = initiateDeveloperControlledWalletsClient({
-  apiKey: API_KEY,
-  entitySecret: ENTITY_SECRET,
-});
+const CIRCLE_BASE = "https://api.circle.com/v1/w3s";
+
+async function circleFetch<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const res = await fetch(`${CIRCLE_BASE}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${API_KEY}`,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json();
+  if (!res.ok)
+    throw new Error(json.message || `Circle API error: ${res.status}`);
+  return json;
+}
 
 const publicClient = createPublicClient({
   chain: {
@@ -45,8 +59,8 @@ async function pollTransaction(
 ): Promise<{ txHash?: string; state: string; error?: string }> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const { data } = await circleClient.getTransaction({ id: txId });
-    const tx = (data as any)?.transaction;
+    const json: any = await circleFetch("GET", `/transactions/${txId}`);
+    const tx = json.data?.transaction;
     const state = tx?.state;
     if (state === "COMPLETE") return { txHash: tx.txHash, state: "COMPLETE" };
     if (state === "FAILED")
@@ -63,18 +77,22 @@ async function sendContractTx(
   abiParameters: string[],
   label: string,
 ) {
-  const txRes = await circleClient.createContractExecutionTransaction({
-    walletId,
-    contractAddress,
-    abiFunctionSignature,
-    abiParameters,
-    fee: {
-      type: "level" as const,
-      config: { feeLevel: "MEDIUM" as const },
+  const json: any = await circleFetch(
+    "POST",
+    "/developer/transactions/contractExecution",
+    {
+      walletId,
+      contractAddress,
+      abiFunctionSignature,
+      abiParameters,
+      fee: {
+        type: "level" as const,
+        config: { feeLevel: "MEDIUM" as const },
+      },
+      idempotencyKey: crypto.randomUUID(),
     },
-    idempotencyKey: crypto.randomUUID(),
-  });
-  const txData = (txRes as any).data;
+  );
+  const txData = json.data;
   const txId = txData?.id;
   if (!txId) throw new Error(`No txId returned for ${label}`);
 
@@ -114,25 +132,25 @@ export async function POST(request: Request) {
       // ── Wallets ────────────────────────────────────────────────
 
       case "createWallets": {
-        const wsRes = await circleClient.createWalletSet({
+        const wsRes: any = await circleFetch("POST", "/developer/walletSets", {
           name: params.walletSetName || "ERC8004 Agent Wallets",
           idempotencyKey: crypto.randomUUID(),
         });
-        const walletSetId = (wsRes as any).data?.walletSet?.id;
+        const walletSetId = wsRes.data?.walletSet?.id;
         if (!walletSetId)
           return NextResponse.json(
             { error: "No walletSetId returned" },
             { status: 500 },
           );
 
-        const wRes = await circleClient.createWallets({
+        const wRes: any = await circleFetch("POST", "/developer/wallets", {
           walletSetId,
           blockchains: [BLOCKCHAIN],
           count: 2,
           accountType: "SCA",
           idempotencyKey: crypto.randomUUID(),
         });
-        const wallets = (wRes as any).data?.wallets;
+        const wallets = wRes.data?.wallets;
         if (!wallets?.length)
           return NextResponse.json(
             { error: "No wallets returned" },
@@ -153,8 +171,8 @@ export async function POST(request: Request) {
             { error: "walletId required" },
             { status: 400 },
           );
-        const res = await circleClient.getWallet({ id: walletId });
-        return NextResponse.json((res as any).data);
+        const res: any = await circleFetch("GET", `/wallets/${walletId}`);
+        return NextResponse.json(res.data);
       }
 
       // ── Identity Registry ──────────────────────────────────────
@@ -510,25 +528,25 @@ export async function POST(request: Request) {
 
       case "setupReputation": {
         // One-shot: create wallet set + 2 wallets, register agent, resolve agent ID
-        const wsRes = await circleClient.createWalletSet({
+        const wsRes: any = await circleFetch("POST", "/developer/walletSets", {
           name: "ERC8004 Agent + Validator",
           idempotencyKey: crypto.randomUUID(),
         });
-        const walletSetId = (wsRes as any).data?.walletSet?.id;
+        const walletSetId = wsRes.data?.walletSet?.id;
         if (!walletSetId)
           return NextResponse.json(
             { error: "No walletSetId returned" },
             { status: 500 },
           );
 
-        const wRes = await circleClient.createWallets({
+        const wRes: any = await circleFetch("POST", "/developer/wallets", {
           walletSetId,
           blockchains: [BLOCKCHAIN],
           count: 2,
           accountType: "SCA",
           idempotencyKey: crypto.randomUUID(),
         });
-        const wallets = (wRes as any).data?.wallets;
+        const wallets = wRes.data?.wallets;
         if (!wallets?.length)
           return NextResponse.json(
             { error: "No wallets returned" },
@@ -582,10 +600,16 @@ export async function POST(request: Request) {
       // ── Utility ────────────────────────────────────────────────
 
       case "debugEnv": {
-        const pk = await circleClient
-          .getPublicKey()
-          .then((r) => (r.data as any)?.publicKey?.substring(0, 30))
-          .catch(() => null);
+        let pk: string | null = null;
+        try {
+          const r: any = await circleFetch(
+            "GET",
+            "/config/entity/publicKey",
+          );
+          pk = r.data?.publicKey?.substring(0, 30);
+        } catch {
+          pk = null;
+        }
         return NextResponse.json({
           apiKey: (API_KEY || "").substring(0, 30) + "...",
           publicKey: pk,
