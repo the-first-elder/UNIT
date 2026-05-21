@@ -1,13 +1,15 @@
 import { MCPClient, type ServerConfig } from "./index.js";
-import {
-  encodeIntent,
-  type ExecutionIntent,
-} from "./txBuilder.js";
+import { encodeIntent, type ExecutionIntent } from "./txBuilder.js";
 import cors from "cors";
 import express from "express";
 import type { Request, Response } from "express";
 import { DEFI_YIELD_TOOLS, callDefiYieldTool } from "./defiYieldTools.js";
-import { LIFI_TOOLS, callLifiTool, lifiGetToken, lifiGetQuote } from "./lifiTools.js";
+import {
+  LIFI_TOOLS,
+  callLifiTool,
+  lifiGetToken,
+  lifiGetQuote,
+} from "./lifiTools.js";
 import { DEFIBORROW_TOOLS, callDefiborrowTool } from "./defiborrowTools.js";
 import { COINGECKO_TOOLS, callCoingeckoTool } from "./coingeckoTools.js";
 import { CCXT_TOOLS, callCcxtTool } from "./ccxtTools.js";
@@ -15,8 +17,13 @@ import { PHILIDOR_TOOLS, callPhilidorTool } from "./philidorTools.js";
 import { HIVE_TOOLS, callHiveTool } from "./hiveTools.js";
 
 const app = express();
-app.use(cors());
+// app.use(cors());
 app.use(express.json());
+app.use(
+  cors({
+    origin: "https://unit-jkz9.vercel.app",
+  }),
+);
 
 const mcpClient = new MCPClient();
 
@@ -27,13 +34,27 @@ async function start() {
   try {
     await mcpClient.connectToServers(serverConfigs);
   } catch (e) {
-    errors.push(`connectToServers: ${e instanceof Error ? e.message : String(e)}`);
+    errors.push(
+      `connectToServers: ${e instanceof Error ? e.message : String(e)}`,
+    );
   }
   try {
-    await mcpClient.addLocalTools("defi-yield", DEFI_YIELD_TOOLS, callDefiYieldTool);
+    await mcpClient.addLocalTools(
+      "defi-yield",
+      DEFI_YIELD_TOOLS,
+      callDefiYieldTool,
+    );
     await mcpClient.addLocalTools("lifi", LIFI_TOOLS, callLifiTool);
-    await mcpClient.addLocalTools("defiborrow", DEFIBORROW_TOOLS, callDefiborrowTool);
-    await mcpClient.addLocalTools("coingecko", COINGECKO_TOOLS, callCoingeckoTool);
+    await mcpClient.addLocalTools(
+      "defiborrow",
+      DEFIBORROW_TOOLS,
+      callDefiborrowTool,
+    );
+    await mcpClient.addLocalTools(
+      "coingecko",
+      COINGECKO_TOOLS,
+      callCoingeckoTool,
+    );
     await mcpClient.addLocalTools("ccxt", CCXT_TOOLS, callCcxtTool);
     await mcpClient.addLocalTools("philidor", PHILIDOR_TOOLS, callPhilidorTool);
     await mcpClient.addLocalTools("hive", HIVE_TOOLS, callHiveTool);
@@ -105,9 +126,7 @@ async function getYields(useCache = true) {
   return yieldsCache;
 }
 
-async function resolveVaultAddress(
-  vaultName: string,
-): Promise<string | null> {
+async function resolveVaultAddress(vaultName: string): Promise<string | null> {
   const yields = await getYields();
   if (!yields || !yields.length) return null;
   const nameLower = vaultName.toLowerCase();
@@ -163,9 +182,7 @@ async function encodeSteps(
 ): Promise<unknown> {
   if (Array.isArray(obj))
     return Promise.all(
-      obj.map((item) =>
-        encodeSteps(item, userAddress, chainId),
-      ),
+      obj.map((item) => encodeSteps(item, userAddress, chainId)),
     );
   if (!obj || typeof obj !== "object") return obj;
 
@@ -206,10 +223,7 @@ async function encodeSteps(
 
       for (const [key, val] of Object.entries(intent.args)) {
         if (typeof val === "string" && !isValidHexAddr(val)) {
-          const resolved = await resolveStepAddress(
-            val,
-            vaultName,
-          );
+          const resolved = await resolveStepAddress(val, vaultName);
           if (resolved)
             (intent.args as Record<string, unknown>)[key] = resolved;
         }
@@ -291,8 +305,13 @@ async function encodeSteps(
 
       const qd = quoteData as Record<string, unknown>;
       const txReq =
-        (qd.transactionRequest as { to: string; data: string; value: string } | undefined) ||
-        ((qd.estimate as Record<string, unknown> | undefined)?.transactionRequest as { to: string; data: string; value: string } | undefined);
+        (qd.transactionRequest as
+          | { to: string; data: string; value: string }
+          | undefined) ||
+        ((qd.estimate as Record<string, unknown> | undefined)
+          ?.transactionRequest as
+          | { to: string; data: string; value: string }
+          | undefined);
       if (!txReq) {
         return {
           ...o,
@@ -303,9 +322,15 @@ async function encodeSteps(
         to: txReq.to,
         data: txReq.data,
         value: txReq.value || "0x0",
-        chainId: ((qd.action as Record<string, unknown> | undefined)?.fromChainId as number | undefined) || parseInt(lifiChain) || 1,
+        chainId:
+          ((qd.action as Record<string, unknown> | undefined)?.fromChainId as
+            | number
+            | undefined) ||
+          parseInt(lifiChain) ||
+          1,
       };
-      const approvalAddr = (qd.estimate as Record<string, unknown> | undefined)?.approvalAddress as string | undefined;
+      const approvalAddr = (qd.estimate as Record<string, unknown> | undefined)
+        ?.approvalAddress as string | undefined;
       if (approvalAddr)
         (o as Record<string, unknown>)._approvalAddress = approvalAddr;
     } catch (e) {
@@ -385,11 +410,7 @@ app.post("/v1/begin", async (req: Request, res: Response) => {
       try {
         let parsed = JSON.parse(jsonStr);
         if (userWallet) parsed = replaceUserAddress(parsed, userWallet);
-        responseData = await encodeSteps(
-          parsed,
-          userWallet,
-          String(chainId),
-        );
+        responseData = await encodeSteps(parsed, userWallet, String(chainId));
 
         const steps = (responseData as Record<string, unknown>)?.steps as
           | Array<Record<string, unknown>>
