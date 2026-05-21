@@ -1,5 +1,8 @@
 .next
 .next/
+.next/cache
+cache
+webpack
 
 # Logs
 logs
