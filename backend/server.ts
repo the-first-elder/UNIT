@@ -32,16 +32,21 @@ const serverConfigs: ServerConfig[] = [
 ];
 
 async function start() {
+  const errors: string[] = [];
   try {
     await mcpClient.connectToServers(serverConfigs);
-    await mcpClient.addLocalTools("defi-yield", DEFI_YIELD_TOOLS, callDefiYieldTool);
-    const PORT = parseInt(process.env.PORT ?? "3001", 10);
-    if (process.env.VERCEL !== "1") {
-      app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
-    }
   } catch (e) {
-    console.error("Failed to start:", e);
-    process.exit(1);
+    errors.push(`connectToServers: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  try {
+    await mcpClient.addLocalTools("defi-yield", DEFI_YIELD_TOOLS, callDefiYieldTool);
+  } catch (e) {
+    errors.push(`addLocalTools: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  if (errors.length) console.warn("Init completed with errors:", errors);
+  const PORT = parseInt(process.env.PORT ?? "3001", 10);
+  if (process.env.VERCEL !== "1") {
+    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
   }
 }
 

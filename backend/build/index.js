@@ -18,7 +18,7 @@ export class MCPClient {
     toolToServer = new Map();
     localHandlers = new Map();
     async connectToServers(configs) {
-        const results = await Promise.all(configs.map(async (cfg) => {
+        const results = await Promise.allSettled(configs.map(async (cfg) => {
             const transport = "url" in cfg
                 ? new StreamableHTTPClientTransport(new URL(cfg.url), {
                     requestInit: cfg.headers && Object.values(cfg.headers).some(Boolean)
@@ -49,7 +49,12 @@ export class MCPClient {
             }));
             return { name: cfg.name, client, serverTools };
         }));
-        for (const { name, client, serverTools } of results) {
+        for (const result of results) {
+            if (result.status === "rejected") {
+                console.warn("Failed to connect server:", result.reason);
+                continue;
+            }
+            const { name, client, serverTools } = result.value;
             for (const t of serverTools)
                 this.toolToServer.set(t.name, name);
             this.tools.push(...serverTools);

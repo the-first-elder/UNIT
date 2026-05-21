@@ -23,17 +23,24 @@ const serverConfigs = [
     { name: "philidor", url: "https://mcp.philidor.io/api/mcp" },
 ];
 async function start() {
+    const errors = [];
     try {
         await mcpClient.connectToServers(serverConfigs);
-        await mcpClient.addLocalTools("defi-yield", DEFI_YIELD_TOOLS, callDefiYieldTool);
-        const PORT = parseInt(process.env.PORT ?? "3001", 10);
-        if (process.env.VERCEL !== "1") {
-            app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
-        }
     }
     catch (e) {
-        console.error("Failed to start:", e);
-        process.exit(1);
+        errors.push(`connectToServers: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    try {
+        await mcpClient.addLocalTools("defi-yield", DEFI_YIELD_TOOLS, callDefiYieldTool);
+    }
+    catch (e) {
+        errors.push(`addLocalTools: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    if (errors.length)
+        console.warn("Init completed with errors:", errors);
+    const PORT = parseInt(process.env.PORT ?? "3001", 10);
+    if (process.env.VERCEL !== "1") {
+        app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
     }
 }
 // Cache for find_best_yield results — reset per request
@@ -496,5 +503,5 @@ app.use((_req, res) => {
         .status(404)
         .json({ message: "Unknown endpoint. Use POST /v1/begin", status: 404 });
 });
-start().catch((e) => console.error("Init failed:", e));
+// start().catch((e) => console.error("Init failed:", e));
 export default app;

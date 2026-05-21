@@ -34,7 +34,7 @@ export class MCPClient {
   > = new Map();
 
   async connectToServers(configs: ServerConfig[]) {
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       configs.map(async (cfg) => {
         const transport =
           "url" in cfg
@@ -78,7 +78,12 @@ export class MCPClient {
       }),
     );
 
-    for (const { name, client, serverTools } of results) {
+    for (const result of results) {
+      if (result.status === "rejected") {
+        console.warn("Failed to connect server:", result.reason);
+        continue;
+      }
+      const { name, client, serverTools } = result.value;
       for (const t of serverTools) this.toolToServer.set(t.name, name);
       this.tools.push(...serverTools);
       this.servers.set(name, client);
