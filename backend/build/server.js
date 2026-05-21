@@ -3,16 +3,12 @@ import { encodeIntent, } from "./txBuilder.js";
 import cors from "cors";
 import express from "express";
 import { DEFI_YIELD_TOOLS, callDefiYieldTool } from "./defiYieldTools.js";
+import { LIFI_TOOLS, callLifiTool, lifiGetToken, lifiGetQuote } from "./lifiTools.js";
 const app = express();
 app.use(cors());
 app.use(express.json());
 const mcpClient = new MCPClient();
 const serverConfigs = [
-    {
-        name: "lifi",
-        url: "https://mcp.li.quest/mcp",
-        headers: { "X-LiFi-Api-Key": process.env.LIFI_API_KEY ?? "" },
-    },
     { name: "defiborrow", url: "https://defiborrow.loan/mcp" },
     { name: "coingecko", url: "https://mcp.api.coingecko.com/mcp" },
     {
@@ -32,6 +28,7 @@ async function start() {
     }
     try {
         await mcpClient.addLocalTools("defi-yield", DEFI_YIELD_TOOLS, callDefiYieldTool);
+        await mcpClient.addLocalTools("lifi", LIFI_TOOLS, callLifiTool);
     }
     catch (e) {
         errors.push(`addLocalTools: ${e instanceof Error ? e.message : String(e)}`);
@@ -192,10 +189,6 @@ async function encodeSteps(obj, defiborrowClient, userAddress, chainId) {
         o.fromAmount &&
         userAddress) {
         try {
-            const lifiClient = mcpClient.getServer("lifi");
-            if (!lifiClient) {
-                return { ...o, error: "LI.FI MCP server not connected" };
-            }
             const [fromSymbol, toSymbol, fromAmount] = [
                 o.fromToken,
                 o.toToken,
@@ -205,22 +198,8 @@ async function encodeSteps(obj, defiborrowClient, userAddress, chainId) {
             const resolveToken = async (symbol) => {
                 if (/^0x[a-fA-F0-9]{40}$/.test(symbol))
                     return symbol;
-                const res = await lifiClient.callTool({
-                    name: "get-token",
-                    arguments: { chain: lifiChain, token: symbol },
-                });
-                const text = (res.content || [])
-                    .map((c) => c.text)
-                    .filter(Boolean)
-                    .join("\n");
-                if (!text)
-                    return null;
-                try {
-                    return JSON.parse(text).address || null;
-                }
-                catch {
-                    return null;
-                }
+                const result = await lifiGetToken(lifiChain, symbol);
+                return result?.address || null;
             };
             const [fromAddr, toAddr] = await Promise.all([
                 resolveToken(fromSymbol),
@@ -252,26 +231,13 @@ async function encodeSteps(obj, defiborrowClient, userAddress, chainId) {
             }
             if (!fromAddr)
                 return { ...o, error: `Cannot resolve token: ${fromSymbol}` };
-            const quoteResult = await lifiClient.callTool({
-                name: "get-quote",
-                arguments: {
-                    fromChain: lifiChain,
-                    toChain: lifiChain,
-                    fromToken: fromAddr,
-                    toToken: toAddr,
-                    fromAmount,
-                    fromAddress: userAddress,
-                },
-            });
-            const quoteText = (quoteResult.content || [])
-                .map((c) => c.text)
-                .filter(Boolean)
-                .join("\n");
-            if (!quoteText) {
+            const quoteData = await lifiGetQuote(lifiChain, lifiChain, fromAddr, toAddr, fromAmount, userAddress);
+            if (!quoteData) {
                 return { ...o, error: "LI.FI quote returned empty response" };
             }
-            const quoteData = JSON.parse(quoteText);
-            const txReq = quoteData.transactionRequest || quoteData.estimate?.transactionRequest;
+            const qd = quoteData;
+            const txReq = qd.transactionRequest ||
+                qd.estimate?.transactionRequest;
             if (!txReq) {
                 return {
                     ...o,
@@ -282,9 +248,9 @@ async function encodeSteps(obj, defiborrowClient, userAddress, chainId) {
                 to: txReq.to,
                 data: txReq.data,
                 value: txReq.value || "0x0",
-                chainId: quoteData.action?.fromChainId || parseInt(lifiChain) || 1,
+                chainId: qd.action?.fromChainId || parseInt(lifiChain) || 1,
             };
-            const approvalAddr = quoteData.estimate?.approvalAddress;
+            const approvalAddr = qd.estimate?.approvalAddress;
             if (approvalAddr)
                 o._approvalAddress = approvalAddr;
         }
