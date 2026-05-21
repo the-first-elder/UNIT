@@ -2,10 +2,10 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "build/server.js",
   "type": "module",
   "scripts": {
-    "build": "tsc && chmod 755 build/index.js",
+    "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -16,7 +16,9 @@
     "@circle-fin/developer-controlled-wallets": "^10.3.1",
     "@lazydino/ccxt-mcp": "^0.4.1",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "cors": "^2.8.5",
     "dotenv": "^17.4.2",
+    "express": "^4.21.0",
     "openai": "^6.37.0",
     "viem": "^2.49.3"
   },
