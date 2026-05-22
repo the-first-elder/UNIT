@@ -57,6 +57,11 @@ export function useCircleWallet() {
     const client = createRpClientForPasskey();
     const regOptions = await client.getRegistrationOptions({ username });
 
+    // Override RP to match the current origin — Circle's buidl env hardcodes "localhost"
+    const originHost = window.location.hostname;
+    regOptions.rp.id = originHost;
+    regOptions.rp.name = originHost;
+
     const challenge = base64UrlToBytes(regOptions.challenge);
     const userId = base64UrlToBytes(regOptions.user.id);
     const publicKey: CredentialCreationOptions["publicKey"] = {
@@ -92,6 +97,9 @@ export function useCircleWallet() {
   const loginCredential = useCallback(async (credentialId?: string): Promise<WebAuthnCredential> => {
     const client = createRpClientForPasskey();
     const loginOptions = await client.getLoginOptions({ userId: credentialId ?? "" });
+
+    // Override RP to match the current origin — Circle's buidl env hardcodes "localhost"
+    loginOptions.rpId = window.location.hostname;
 
     const loginChallenge = base64UrlToBytes(loginOptions.challenge);
     const publicKey: CredentialRequestOptions["publicKey"] = {
