@@ -200,7 +200,11 @@ export function useCircleWallet() {
       credentialId: null,
       publicKey: null,
     });
-  }, []);
+    // Call store directly — this hook instance may already have null address
+    // (it's a separate useState from the one that connected), so React may bail
+    // out of the re-render and the useEffect below won't fire.
+    setWallet(null, null);
+  }, [setWallet]);
 
   return {
     ...state,
