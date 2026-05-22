@@ -1,17 +1,20 @@
 import { MCPClient } from "./index.js";
-import { encodeIntent, } from "./txBuilder.js";
+import { encodeIntent } from "./txBuilder.js";
 import cors from "cors";
 import express from "express";
 import { DEFI_YIELD_TOOLS, callDefiYieldTool } from "./defiYieldTools.js";
-import { LIFI_TOOLS, callLifiTool, lifiGetToken, lifiGetQuote } from "./lifiTools.js";
+import { LIFI_TOOLS, callLifiTool, lifiGetToken, lifiGetQuote, } from "./lifiTools.js";
 import { DEFIBORROW_TOOLS, callDefiborrowTool } from "./defiborrowTools.js";
 import { COINGECKO_TOOLS, callCoingeckoTool } from "./coingeckoTools.js";
 import { CCXT_TOOLS, callCcxtTool } from "./ccxtTools.js";
 import { PHILIDOR_TOOLS, callPhilidorTool } from "./philidorTools.js";
 import { HIVE_TOOLS, callHiveTool } from "./hiveTools.js";
 const app = express();
-app.use(cors());
+// app.use(cors());
 app.use(express.json());
+app.use(cors({
+    origin: "https://unit-jkz9.vercel.app",
+}));
 const mcpClient = new MCPClient();
 const serverConfigs = [];
 async function start() {
@@ -237,7 +240,8 @@ async function encodeSteps(obj, userAddress, chainId) {
             }
             const qd = quoteData;
             const txReq = qd.transactionRequest ||
-                qd.estimate?.transactionRequest;
+                qd.estimate
+                    ?.transactionRequest;
             if (!txReq) {
                 return {
                     ...o,
@@ -248,9 +252,12 @@ async function encodeSteps(obj, userAddress, chainId) {
                 to: txReq.to,
                 data: txReq.data,
                 value: txReq.value || "0x0",
-                chainId: qd.action?.fromChainId || parseInt(lifiChain) || 1,
+                chainId: qd.action?.fromChainId ||
+                    parseInt(lifiChain) ||
+                    1,
             };
-            const approvalAddr = qd.estimate?.approvalAddress;
+            const approvalAddr = qd.estimate
+                ?.approvalAddress;
             if (approvalAddr)
                 o._approvalAddress = approvalAddr;
         }

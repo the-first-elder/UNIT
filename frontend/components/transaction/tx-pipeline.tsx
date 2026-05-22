@@ -29,8 +29,7 @@ export function TxPipeline({
 }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
   const stateMap = new Map(states.map((s) => [s.step.step, s]));
-  const validSteps = steps.filter((s) => !s.error);
-  const hasSteps = validSteps.length > 0;
+  const hasSteps = steps.length > 0;
 
   // Derive overall pipeline stage from individual step states
   const pipelineStage = useMemo<"pending" | "executing" | "success" | "failed">(() => {
@@ -73,7 +72,7 @@ export function TxPipeline({
             size="sm"
             variant="outline"
             className="h-8 text-xs gap-1.5 cursor-pointer hover:bg-accent/80 active:scale-95 transition-all"
-            onClick={() => onExecuteAll(validSteps)}
+            onClick={() => onExecuteAll(steps)}
             disabled={isExecuting}
           >
             <Play className="h-3 w-3" />
@@ -83,7 +82,7 @@ export function TxPipeline({
             size="sm"
             variant="premium"
             className="h-8 text-xs gap-1.5 cursor-pointer hover:opacity-90 active:scale-95 transition-all"
-            onClick={() => onExecuteParallel(validSteps)}
+            onClick={() => onExecuteParallel(steps)}
             disabled={isExecuting}
           >
             <Layers className="h-3 w-3" />
@@ -127,7 +126,7 @@ export function TxPipeline({
       </AnimatePresence>
 
       <div ref={parentRef} className="space-y-2 max-h-[500px] overflow-y-auto">
-        {validSteps.map((step, i) => {
+        {steps.map((step, i) => {
           const state = stateMap.get(step.step);
           if (!state) return null;
           return (
@@ -136,7 +135,7 @@ export function TxPipeline({
               state={state}
               onExecute={onExecuteStep}
               index={i}
-              totalSteps={validSteps.length}
+              totalSteps={steps.length}
             />
           );
         })}

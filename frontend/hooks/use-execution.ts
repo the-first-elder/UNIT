@@ -21,13 +21,20 @@ async function recordExecutionResult(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "recordExecutionResult", steps: results }),
     });
-    if (res.ok) {
-      const data = await res.json();
-      const txHash = data.results?.[0]?.txHash as string | undefined;
-      onComplete?.({ txHash, count: data.count, averageScore: data.averageScore });
+    const data = await res.json();
+    if (!res.ok) {
+      console.warn("recordExecutionResult non-ok:", res.status, data);
+      return;
     }
-  } catch {
+    if (data.skipped) {
+      console.warn("recordExecutionResult skipped:", data.note);
+      return;
+    }
+    const txHash = data.results?.[0]?.txHash as string | undefined;
+    onComplete?.({ txHash, count: data.count, averageScore: data.averageScore });
+  } catch (e) {
     // fire-and-forget — don't block UX
+    console.warn("recordExecutionResult failed:", e);
   }
 }
 
