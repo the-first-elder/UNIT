@@ -21,6 +21,44 @@ const ERC8004_VALIDATOR_WALLET_ID =
   process.env.ERC8004_VALIDATOR_WALLET_ID || "";
 
 const CIRCLE_BASE = "https://api.circle.com/v1/w3s";
+const ENTITY_SECRET = process.env.CIRCLE_ENTITY_SECRET || "";
+let cachedPublicKey: { pem: string; expiresAt: number } | null = null;
+
+async function getCirclePublicKey(): Promise<string> {
+  if (cachedPublicKey && Date.now() < cachedPublicKey.expiresAt)
+    return cachedPublicKey.pem;
+  const res: any = await circleFetch("GET", "/config/entity/publicKey");
+  const pem = res.data?.publicKey;
+  if (!pem) throw new Error("No public key from Circle");
+  cachedPublicKey = { pem, expiresAt: Date.now() + 3600_000 };
+  return pem;
+}
+
+async function encryptEntitySecret(): Promise<string> {
+  const pem = await getCirclePublicKey();
+  const b64 = pem
+    .replace("-----BEGIN PUBLIC KEY-----", "")
+    .replace("-----END PUBLIC KEY-----", "")
+    .replace(/\s/g, "");
+  const keyBuf = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const publicKey = await crypto.subtle.importKey(
+    "spki",
+    keyBuf,
+    { name: "RSA-OAEP", hash: "SHA-256" },
+    false,
+    ["encrypt"],
+  );
+  // Entity secret is a hex string — decode to raw bytes first
+  const secretBytes = new Uint8Array(
+    (ENTITY_SECRET.match(/.{1,2}/g) || []).map((b) => parseInt(b, 16)),
+  );
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "RSA-OAEP" },
+    publicKey,
+    secretBytes,
+  );
+  return btoa(String.fromCharCode(...new Uint8Array(encrypted)));
+}
 
 async function circleFetch<T>(
   method: string,
@@ -78,6 +116,7 @@ async function sendContractTx(
   abiParameters: string[],
   label: string,
 ) {
+  const entitySecretCiphertext = await encryptEntitySecret();
   const json: any = await circleFetch(
     "POST",
     "/developer/transactions/contractExecution",
@@ -86,10 +125,8 @@ async function sendContractTx(
       contractAddress,
       abiFunctionSignature,
       abiParameters,
-      fee: {
-        type: "level" as const,
-        config: { feeLevel: "MEDIUM" as const },
-      },
+      feeLevel: "MEDIUM",
+      entitySecretCiphertext,
       idempotencyKey: crypto.randomUUID(),
     },
   );
