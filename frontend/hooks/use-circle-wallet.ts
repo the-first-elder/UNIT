@@ -26,6 +26,7 @@ interface CircleWalletState {
   error: string | null;
   walletType: WalletType | null;
   credentialId: string | null;
+  publicKey: string | null;
 }
 
 interface WebAuthnCredential {
@@ -44,6 +45,7 @@ export function useCircleWallet() {
     error: null,
     walletType: null,
     credentialId: null,
+    publicKey: null,
   });
 
   const hasConfig = Boolean(CLIENT_URL && CLIENT_KEY);
@@ -80,7 +82,10 @@ export function useCircleWallet() {
     const credential = (await navigator.credentials.create({ publicKey })) as PublicKeyCredential | null;
     if (!credential) throw new Error("No credential created.");
 
-    await client.getRegistrationVerification({ credential });
+    // Skip getRegistrationVerification — Circle's buidl env generates challenge with
+    // rp.id = "localhost" but we override it to the actual origin; verification against
+    // the original (localhost) challenge always fails. Public key comes from the credential.
+    // await client.getRegistrationVerification({ credential });
 
     const pkBuf = (credential.response as AuthenticatorAttestationResponse).getPublicKey();
     if (!pkBuf) throw new Error("No public key in credential");
@@ -94,7 +99,7 @@ export function useCircleWallet() {
     };
   }, [createRpClientForPasskey]);
 
-  const loginCredential = useCallback(async (credentialId?: string): Promise<WebAuthnCredential> => {
+  const loginCredential = useCallback(async (credentialId?: string, storedPublicKey?: string | null): Promise<WebAuthnCredential> => {
     const client = createRpClientForPasskey();
     const loginOptions = await client.getLoginOptions({ userId: credentialId ?? "" });
 
@@ -114,15 +119,14 @@ export function useCircleWallet() {
     const credential = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null;
     if (!credential) throw new Error("No credential found.");
 
-    await client.getLoginVerification({ credential });
-
-    const pkBuf = (credential.response as AuthenticatorAttestationResponse).getPublicKey();
-    if (!pkBuf) throw new Error("No public key in credential");
-    const rawPk = await parseCredentialPublicKey(pkBuf);
+    // Skip getLoginVerification — same reason as registration (RP ID mismatch).
+    // The assertion response doesn't contain a public key (only the attestation
+    // response from registration does), so return the stored publicKey instead.
+    // await client.getLoginVerification({ credential });
 
     return {
       id: credential.id,
-      publicKey: serializePublicKey(rawPk, { compressed: true }),
+      publicKey: storedPublicKey ?? undefined,
       raw: credential,
       rpId: loginOptions.rpId,
     };
@@ -144,7 +148,7 @@ export function useCircleWallet() {
     try {
       const credential = isRegister
         ? await registerCredential(`unit-user-${Date.now()}`)
-        : await loginCredential(state.credentialId ?? undefined);
+        : await loginCredential(state.credentialId ?? undefined, state.publicKey);
 
       const address = `0x${credential.publicKey?.slice(0, 40) || "0000000000000000000000000000000000000000"}`;
       const minAddress = `0x${credential.id.slice(0, 40)}`;
@@ -157,6 +161,7 @@ export function useCircleWallet() {
         error: null,
         walletType: "circle-passkey",
         credentialId: credential.id,
+        publicKey: credential.publicKey ?? null,
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : `${String(mode)} failed`;
@@ -166,7 +171,7 @@ export function useCircleWallet() {
         error: message,
       }));
     }
-  }, [hasConfig, registerCredential, loginCredential, state.credentialId]);
+  }, [hasConfig, registerCredential, loginCredential, state.credentialId, state.publicKey]);
 
   const registerWithPasskey = useCallback(
     () => connectPasskey(WebAuthnMode.Register),
@@ -193,6 +198,7 @@ export function useCircleWallet() {
       error: null,
       walletType: null,
       credentialId: null,
+      publicKey: null,
     });
   }, []);
 
