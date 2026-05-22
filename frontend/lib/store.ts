@@ -38,7 +38,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   messages: [],
-  activeChain: { id: "1", name: "Ethereum", shortName: "ETH", icon: "⟠" },
+  activeChain: { id: "5042002", name: "Arc Testnet", shortName: "ARC", icon: "🧪" },
   isProcessing: false,
   executionStates: new Map(),
   sidebarOpen: true,

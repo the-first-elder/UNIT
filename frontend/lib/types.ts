@@ -91,6 +91,7 @@ export interface ChainConfig {
 }
 
 export const SUPPORTED_CHAINS: ChainConfig[] = [
+  { id: "5042002", name: "Arc Testnet", shortName: "ARC", icon: "🧪" },
   { id: "1", name: "Ethereum", shortName: "ETH", icon: "⟠" },
   { id: "42161", name: "Arbitrum", shortName: "ARB", icon: "🔷" },
   { id: "10", name: "Optimism", shortName: "OP", icon: "🔴" },
@@ -98,7 +99,6 @@ export const SUPPORTED_CHAINS: ChainConfig[] = [
   { id: "137", name: "Polygon", shortName: "MATIC", icon: "🟣" },
   { id: "43114", name: "Avalanche", shortName: "AVAX", icon: "❄️" },
   { id: "11155111", name: "Sepolia", shortName: "ETH", icon: "🧪" },
-  { id: "5042002", name: "Arc Testnet", shortName: "ARC", icon: "🧪" },
 ];
 
 export interface ActivePosition {
