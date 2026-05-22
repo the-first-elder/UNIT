@@ -10,8 +10,39 @@ import {
 import {
   base64UrlToBytes,
   parseCredentialPublicKey,
-  serializePublicKey,
 } from "webauthn-p256";
+import { keccak256, bytesToHex, hexToBytes } from "viem";
+
+// Derive an Ethereum address from a WebAuthn credential's public key.
+async function deriveAddress(credential: PublicKeyCredential): Promise<`0x${string}`> {
+  const pkBuf = (credential.response as AuthenticatorAttestationResponse).getPublicKey();
+  if (!pkBuf) throw new Error("No public key in credential");
+  // Parse the COSE-encoded public key into x,y coordinates (bigints)
+  const rawPk = await parseCredentialPublicKey(pkBuf);
+  // Reconstruct uncompressed key: 0x04 + x(32 bytes) + y(32 bytes)
+  const uncompressed = new Uint8Array(65);
+  uncompressed[0] = 0x04;
+  // Write x as big-endian 32 bytes
+  const xBytes = new Uint8Array(32);
+  let x = rawPk.x;
+  for (let i = 31; i >= 0; i--) {
+    xBytes[i] = Number(x & 255n);
+    x >>= 8n;
+  }
+  uncompressed.set(xBytes, 1);
+  // Write y as big-endian 32 bytes
+  const yBytes = new Uint8Array(32);
+  let y = rawPk.y;
+  for (let i = 31; i >= 0; i--) {
+    yBytes[i] = Number(y & 255n);
+    y >>= 8n;
+  }
+  uncompressed.set(yBytes, 33);
+  // keccak256 of the 64-byte public key (without 0x04 prefix)
+  const hash = keccak256(uncompressed.slice(1));
+  // Ethereum address = last 20 bytes of hash
+  return `0x${hash.slice(-40)}` as `0x${string}`;
+}
 
 const CLIENT_URL = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_URL || "";
 const CLIENT_KEY = process.env.NEXT_PUBLIC_CIRCLE_CLIENT_KEY || "";
@@ -127,13 +158,11 @@ export function useCircleWallet() {
     // the original (localhost) challenge always fails. Public key comes from the credential.
     // await client.getRegistrationVerification({ credential });
 
-    const pkBuf = (credential.response as AuthenticatorAttestationResponse).getPublicKey();
-    if (!pkBuf) throw new Error("No public key in credential");
-    const rawPk = await parseCredentialPublicKey(pkBuf);
+    const address = await deriveAddress(credential);
 
     return {
       id: credential.id,
-      publicKey: serializePublicKey(rawPk, { compressed: true }),
+      publicKey: address,
       raw: credential,
       rpId: regOptions.rp.id,
     };
@@ -190,9 +219,7 @@ export function useCircleWallet() {
         ? await registerCredential(`unit-user-${Date.now()}`)
         : await loginCredential(state.credentialId ?? undefined, state.publicKey);
 
-      const derivedAddress = `0x${credential.publicKey?.slice(0, 40) || "0000000000000000000000000000000000000000"}`;
-      const minAddress = `0x${credential.id.slice(0, 40)}`;
-      const finalAddress = credential.publicKey ? derivedAddress : minAddress;
+      const finalAddress = credential.publicKey ?? `0x${credential.id.slice(0, 40)}`;
 
       setState({
         isConnected: true,
@@ -202,7 +229,7 @@ export function useCircleWallet() {
         error: null,
         walletType: "circle-passkey",
         credentialId: credential.id,
-        publicKey: credential.publicKey ?? null,
+        publicKey: finalAddress,
       });
 
       if (credential.publicKey) {
