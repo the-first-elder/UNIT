@@ -36,16 +36,56 @@ interface WebAuthnCredential {
   rpId: string | undefined;
 }
 
+const PASSKEY_STORE_KEY = "unit-passkeys";
+
+interface StoredPasskey {
+  publicKey: string;
+  address: string;
+}
+
+function loadStoredPasskeys(): Record<string, StoredPasskey> {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(PASSKEY_STORE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredPasskey(credentialId: string, data: StoredPasskey) {
+  const store = loadStoredPasskeys();
+  store[credentialId] = data;
+  localStorage.setItem(PASSKEY_STORE_KEY, JSON.stringify(store));
+}
+
 export function useCircleWallet() {
-  const [state, setState] = useState<CircleWalletState>({
-    isConnected: false,
-    address: null,
-    isRegistering: false,
-    isLoggingIn: false,
-    error: null,
-    walletType: null,
-    credentialId: null,
-    publicKey: null,
+  const [state, setState] = useState<CircleWalletState>(() => {
+    const stored = loadStoredPasskeys();
+    const entries = Object.entries(stored);
+    // If there's a stored passkey, restore it as the most recent
+    if (entries.length > 0) {
+      const [credentialId, data] = entries[entries.length - 1];
+      return {
+        isConnected: true,
+        address: data.address,
+        isRegistering: false,
+        isLoggingIn: false,
+        error: null,
+        walletType: "circle-passkey" as const,
+        credentialId,
+        publicKey: data.publicKey,
+      };
+    }
+    return {
+      isConnected: false,
+      address: null,
+      isRegistering: false,
+      isLoggingIn: false,
+      error: null,
+      walletType: null,
+      credentialId: null,
+      publicKey: null,
+    };
   });
 
   const hasConfig = Boolean(CLIENT_URL && CLIENT_KEY);
@@ -150,12 +190,13 @@ export function useCircleWallet() {
         ? await registerCredential(`unit-user-${Date.now()}`)
         : await loginCredential(state.credentialId ?? undefined, state.publicKey);
 
-      const address = `0x${credential.publicKey?.slice(0, 40) || "0000000000000000000000000000000000000000"}`;
+      const derivedAddress = `0x${credential.publicKey?.slice(0, 40) || "0000000000000000000000000000000000000000"}`;
       const minAddress = `0x${credential.id.slice(0, 40)}`;
+      const finalAddress = credential.publicKey ? derivedAddress : minAddress;
 
       setState({
         isConnected: true,
-        address: credential.publicKey ? address : minAddress,
+        address: finalAddress,
         isRegistering: false,
         isLoggingIn: false,
         error: null,
@@ -163,6 +204,10 @@ export function useCircleWallet() {
         credentialId: credential.id,
         publicKey: credential.publicKey ?? null,
       });
+
+      if (credential.publicKey) {
+        saveStoredPasskey(credential.id, { publicKey: credential.publicKey, address: finalAddress });
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : `${String(mode)} failed`;
       setState((s) => ({
@@ -204,6 +249,7 @@ export function useCircleWallet() {
     // (it's a separate useState from the one that connected), so React may bail
     // out of the re-render and the useEffect below won't fire.
     setWallet(null, null);
+    localStorage.removeItem(PASSKEY_STORE_KEY);
   }, [setWallet]);
 
   return {
