@@ -233,7 +233,7 @@ export function useCircleWallet() {
       // fetch the real Circle wallet address
       const isInvalidAddress = !/^0x[a-fA-F0-9]{40}$/.test(finalAddress);
 
-      if (isRegister || (walletId && isInvalidAddress)) {
+      if (isRegister || isInvalidAddress) {
         const stored = loadStoredPasskeys();
         const existing = stored[credential.id];
         if (existing?.walletId && existing?.address && /^0x[a-fA-F0-9]{40}$/.test(existing.address)) {
@@ -303,10 +303,10 @@ export function useCircleWallet() {
   }, [state.address, setWallet]);
 
   // Fix invalid stored addresses on mount — old credential-ID fallback
-  // addresses have non-hex chars. If walletId exists, fetch the real address.
+  // addresses have non-hex chars. Fetch or create a Circle wallet to get the real address.
   useEffect(() => {
     const isInvalid = state.address && !/^0x[a-fA-F0-9]{40}$/.test(state.address);
-    if (isInvalid && state.walletId) {
+    if (isInvalid) {
       (async () => {
         try {
           const res = await fetch("/api/circle/passkey", {
@@ -317,12 +317,15 @@ export function useCircleWallet() {
           const data = await res.json();
           if (res.ok && data.walletId && data.address) {
             setState((s) => ({ ...s, address: data.address, publicKey: data.address, walletId: data.walletId }));
+            // Update all stored entries for this credential (match by any walletId or credentialId)
             const stored = loadStoredPasskeys();
-            for (const [credId, entry] of Object.entries(stored)) {
-              if (entry.walletId === state.walletId) {
-                saveStoredPasskey(credId, { ...entry, address: data.address, walletId: data.walletId ?? "" });
-                break;
-              }
+            const storedCredId = Object.entries(stored).find(
+              ([, e]) => e.walletId === state.walletId || e.address === state.address,
+            )?.[0];
+            if (storedCredId) {
+              saveStoredPasskey(storedCredId, { ...stored[storedCredId], address: data.address, walletId: data.walletId ?? "" });
+            } else if (state.credentialId) {
+              saveStoredPasskey(state.credentialId, { publicKey: data.address, address: data.address, walletId: data.walletId ?? "" });
             }
           }
         } catch (e) {
