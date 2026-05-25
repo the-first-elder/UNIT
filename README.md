@@ -234,7 +234,7 @@ sequenceDiagram
 ## Project Structure
 
 ```
-aurum_unit/
+UNIT/
 │
 ├── frontend/                          # Next.js 15 Application
 │   ├── app/
@@ -394,8 +394,8 @@ After execution completes, UNIT automatically records the outcome on-chain:
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/your-org/aurum_unit
-cd aurum_unit
+git clone https://github.com/your-org/UNIT
+cd UNIT
 
 # Install frontend dependencies
 cd frontend && npm install && cd ..
