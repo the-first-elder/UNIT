@@ -103,6 +103,59 @@ export function useCircleSocialWallet() {
       try {
         const { W3SSdk } = await import("@circle-fin/w3s-pw-web-sdk");
 
+        const autoInitUser = async (userToken: string): Promise<string | null> => {
+          try {
+            const chain = useAppStore.getState().activeChain;
+            const blockchain = CHAIN_ID_TO_BLOCKCHAIN[chain.id] || "ARC-TESTNET";
+            const res = await fetch("/api/circle/social", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "initializeUser", userToken, blockchains: [blockchain] }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              if (data.code === 155106) {
+                setStatus("Loading existing wallet...");
+                await loadWalletsFn(userToken);
+                return null;
+              }
+              setStatus("Initialization failed");
+              return null;
+            }
+            const cId: string | null = data.challengeId ?? null;
+            if (cId) {
+              setChallengeId(cId);
+              setStatus("Creating wallet...");
+            }
+            return cId;
+          } catch (err: any) {
+            if (err?.code === 155106) {
+              setStatus("Loading existing wallet...");
+              await loadWalletsFn(userToken);
+              return null;
+            }
+            setLoginError(err.message);
+            setStatus("Initialization failed");
+            return null;
+          }
+        };
+
+        const autoExecChallenge = (challengeId: string, userToken: string, encryptionKey: string) => {
+          const sdk = sdkRef.current;
+          if (!sdk) return;
+          sdk.setAuthentication({ userToken, encryptionKey });
+          sdk.execute(challengeId, (error: any) => {
+            if (error) {
+              setLoginError(error.message || "Challenge failed");
+              setStatus("Challenge failed");
+              return;
+            }
+            setStatus("Wallet created! Loading...");
+            setChallengeId(null);
+            setTimeout(() => loadWalletsFn(userToken), 2000);
+          });
+        };
+
         const onLoginComplete = (err: any, result: any) => {
           if (cancelled) return;
 
@@ -132,10 +185,19 @@ export function useCircleSocialWallet() {
 
           setLoginResult({ userToken: ut, encryptionKey: ek });
           setLoginError(null);
-          setStatus("Login successful. Ready to initialize.");
+          setStatus("Login successful. Initializing wallet...");
 
-          // Try to restore wallets immediately if user was already initialized
-          loadWalletsFn(ut).catch(() => {});
+          // Auto-initialize user and execute challenge after Google login
+          (async () => {
+            try {
+              const challengeId = await autoInitUser(ut);
+              if (challengeId) {
+                autoExecChallenge(challengeId, ut, ek);
+              }
+            } catch {
+              // autoInitUser handles its own state updates on error
+            }
+          })();
         };
 
         const restoredDeviceToken = (getCookie("deviceToken") as string) || "";
@@ -265,6 +327,74 @@ export function useCircleSocialWallet() {
       setStatus("Google sign-in failed");
     }
   }, [hasDeviceToken]);
+
+  const connectWithGoogle = useCallback(async () => {
+    const sdk = sdkRef.current;
+    if (!sdk || !sdkReady) {
+      setStatus("SDK not ready");
+      return;
+    }
+
+    // Auto-create device token if missing
+    if (!hasDeviceToken) {
+      setStatus("Creating device token...");
+      setLoginError(null);
+      try {
+        const deviceId = await sdk.getDeviceId();
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("deviceId", deviceId);
+        }
+        const res = await fetch("/api/circle/social", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "createDeviceToken", deviceId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        setCookie("deviceToken", data.deviceToken);
+        setCookie("deviceEncryptionKey", data.deviceEncryptionKey);
+        setHasDeviceToken(true);
+      } catch (err: any) {
+        setLoginError(err.message);
+        setStatus("Device token failed");
+        return;
+      }
+    }
+
+    // Proceed with Google login
+    const dt = getCookie("deviceToken") as string;
+    const dk = getCookie("deviceEncryptionKey") as string;
+    if (!dt || !dk) {
+      setStatus("Missing device token");
+      return;
+    }
+
+    setCookie("appId", APP_ID);
+    setCookie("google.clientId", GOOGLE_CLIENT_ID);
+    setCookie("deviceToken", dt);
+    setCookie("deviceEncryptionKey", dk);
+
+    sdk.updateConfigs({
+      appSettings: { appId: APP_ID },
+      loginConfigs: {
+        deviceToken: dt,
+        deviceEncryptionKey: dk,
+        google: {
+          clientId: GOOGLE_CLIENT_ID,
+          redirectUri: `${window.location.origin}/app`,
+          selectAccountPrompt: true,
+        },
+      },
+    });
+
+    setStatus("Redirecting to Google...");
+    try {
+      sdk.performLogin(SocialLoginProvider.GOOGLE);
+    } catch (e: any) {
+      setLoginError(e?.message || "performLogin failed");
+      setStatus("Google sign-in failed");
+    }
+  }, [sdkReady, hasDeviceToken]);
 
   const initializeUser = useCallback(async () => {
     if (!loginResult?.userToken) {
@@ -689,6 +819,7 @@ export function useCircleSocialWallet() {
 
   const disconnect = useCallback(() => {
     clearAllState();
+    useAppStore.getState().setWallet(null, null);
   }, [clearAllState]);
 
   const walletForChain = wallets.find((w) => w.blockchain === currentBlockchain) || wallets[0];
@@ -716,6 +847,7 @@ export function useCircleSocialWallet() {
     hasConfig,
     createDeviceToken,
     loginWithGoogle,
+    connectWithGoogle,
     initializeUser,
     executeChallenge,
     executeTransaction,

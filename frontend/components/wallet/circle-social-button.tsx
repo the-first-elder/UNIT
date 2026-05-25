@@ -9,7 +9,6 @@ import {
   Loader2,
   AlertCircle,
   Wallet,
-  KeyRound,
   Copy,
   Check,
   RotateCcw,
@@ -29,10 +28,7 @@ export function CircleSocialWalletButton() {
     hasDeviceToken,
     loginResult,
     challengeId,
-    createDeviceToken,
-    loginWithGoogle,
-    initializeUser,
-    executeChallenge,
+    connectWithGoogle,
     clearAllState,
     disconnect,
   } = useSocialWallet();
@@ -78,7 +74,7 @@ export function CircleSocialWalletButton() {
     );
   }
 
-  const step = !hasDeviceToken ? 1 : !loginResult ? 2 : challengeId ? 4 : 3;
+  const isLoading = status.includes("Redirecting") || status.includes("Creating device") || status.includes("Initializing") || status.includes("Creating wallet") || status.includes("Loading") || status.includes("Executing");
 
   return (
     <div className="space-y-1.5 w-full">
@@ -103,58 +99,24 @@ export function CircleSocialWalletButton() {
         )}
       </AnimatePresence>
 
-      {step === 1 && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2 h-9 text-xs"
-          onClick={createDeviceToken}
-          disabled={!sdkReady}
-        >
-          {!sdkReady ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <KeyRound className="h-3.5 w-3.5" />
-          )}
-          {!sdkReady ? "Initializing..." : "1. Create device token"}
-        </Button>
-      )}
-
-      {step === 2 && (
-        <Button
-          variant="premium"
-          size="sm"
-          className="w-full gap-2 h-9 text-xs"
-          onClick={loginWithGoogle}
-        >
+      <Button
+        variant="premium"
+        size="sm"
+        className="w-full gap-2 h-9 text-xs"
+        onClick={connectWithGoogle}
+        disabled={!sdkReady || isLoading}
+      >
+        {isLoading ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
           <Chrome className="h-3.5 w-3.5" />
-          Sign in with Google
-        </Button>
-      )}
-
-      {step === 3 && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2 h-9 text-xs"
-          onClick={initializeUser}
-        >
-          <Wallet className="h-3.5 w-3.5" />
-          Initialize Wallet
-        </Button>
-      )}
-
-      {step === 4 && (
-        <Button
-          variant="premium"
-          size="sm"
-          className="w-full gap-2 h-9 text-xs"
-          onClick={executeChallenge}
-        >
-          <Wallet className="h-3.5 w-3.5" />
-          Confirm Wallet
-        </Button>
-      )}
+        )}
+        {isLoading ? (
+          <span className="truncate">{status}</span>
+        ) : (
+          "Connect with Google"
+        )}
+      </Button>
 
       <div className="text-[10px] text-muted-foreground/50 text-center">{status}</div>
 
@@ -175,7 +137,6 @@ export function CircleSocialWalletButton() {
               hasChallengeId: !!challengeId,
               walletCount: wallets.length,
               walletAddress: address,
-              step,
               status,
             },
             null,

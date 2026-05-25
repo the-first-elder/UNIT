@@ -11,6 +11,11 @@ const BASE = "https://api.circle.com/v1/w3s";
 // Cache the Circle public key for entity secret encryption
 let cachedPublicKey: { pem: string; expiresAt: number } | null = null;
 
+// In-memory store for credentialId → walletId mapping.
+// Survives across requests in the same dev server instance.
+// On Vercel production, this resets on cold starts — swap for Vercel KV if needed.
+const passkeyWalletStore = new Map<string, { walletId: string; address: string }>();
+
 async function getCirclePublicKey(): Promise<string> {
   if (cachedPublicKey && Date.now() < cachedPublicKey.expiresAt) {
     return cachedPublicKey.pem;
@@ -88,7 +93,37 @@ export async function POST(request: Request) {
         });
         const wallet = wRes.data?.wallets?.[0];
         if (!wallet) return NextResponse.json({ error: "No wallet created" }, { status: 500 });
+
+        // Store credentialId → wallet mapping if credentialId was provided
+        if (params.credentialId) {
+          passkeyWalletStore.set(params.credentialId, {
+            walletId: wallet.id,
+            address: wallet.address,
+          });
+        }
+
         return NextResponse.json({ walletId: wallet.id, address: wallet.address, walletSetId });
+      }
+
+      case "storePasskeyWallet": {
+        const { credentialId, walletId: pWalletId, address: pAddress } = params;
+        if (!credentialId || !pWalletId) {
+          return NextResponse.json({ error: "credentialId and walletId required" }, { status: 400 });
+        }
+        passkeyWalletStore.set(credentialId, { walletId: pWalletId, address: pAddress || "" });
+        return NextResponse.json({ stored: true });
+      }
+
+      case "getPasskeyWallet": {
+        const { credentialId: lookupId } = params;
+        if (!lookupId) {
+          return NextResponse.json({ error: "credentialId required" }, { status: 400 });
+        }
+        const entry = passkeyWalletStore.get(lookupId);
+        if (!entry) {
+          return NextResponse.json({ found: false, walletId: null, address: null });
+        }
+        return NextResponse.json({ found: true, walletId: entry.walletId, address: entry.address });
       }
 
       case "createWalletSet": {
