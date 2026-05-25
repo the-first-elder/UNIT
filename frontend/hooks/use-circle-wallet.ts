@@ -228,10 +228,15 @@ export function useCircleWallet() {
       // Get or create a Circle W3S wallet for this passkey user
       let walletId = state.walletId;
       let finalAddress = state.address ?? passkeyAddress;
-      if (isRegister) {
+
+      // If the stored address is invalid (credential ID fallback with non-hex chars),
+      // fetch the real Circle wallet address
+      const isInvalidAddress = !/^0x[a-fA-F0-9]{40}$/.test(finalAddress);
+
+      if (isRegister || (walletId && isInvalidAddress)) {
         const stored = loadStoredPasskeys();
         const existing = stored[credential.id];
-        if (existing?.walletId) {
+        if (existing?.walletId && existing?.address && /^0x[a-fA-F0-9]{40}$/.test(existing.address)) {
           walletId = existing.walletId;
           finalAddress = existing.address;
         } else {
@@ -296,6 +301,36 @@ export function useCircleWallet() {
   useEffect(() => {
     setWallet(state.address, state.address ? "passkey" : null);
   }, [state.address, setWallet]);
+
+  // Fix invalid stored addresses on mount — old credential-ID fallback
+  // addresses have non-hex chars. If walletId exists, fetch the real address.
+  useEffect(() => {
+    const isInvalid = state.address && !/^0x[a-fA-F0-9]{40}$/.test(state.address);
+    if (isInvalid && state.walletId) {
+      (async () => {
+        try {
+          const res = await fetch("/api/circle/passkey", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "setupWallet" }),
+          });
+          const data = await res.json();
+          if (res.ok && data.walletId && data.address) {
+            setState((s) => ({ ...s, address: data.address, publicKey: data.address, walletId: data.walletId }));
+            const stored = loadStoredPasskeys();
+            for (const [credId, entry] of Object.entries(stored)) {
+              if (entry.walletId === state.walletId) {
+                saveStoredPasskey(credId, { ...entry, address: data.address, walletId: data.walletId ?? "" });
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to fix stale passkey address:", e);
+        }
+      })();
+    }
+  }, []); // run once on mount
 
   const disconnect = useCallback(() => {
     setState((s) => ({
