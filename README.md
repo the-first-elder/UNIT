@@ -4,7 +4,6 @@
   <img src="https://img.shields.io/badge/UNIT-DeFi_Engine-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js" />
   <img src="https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript" />
-  <img src="https://img.shields.io/badge/Python-MCP-yellow?style=for-the-badge&logo=python" />
   <img src="https://img.shields.io/badge/Circle-W3S-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/LI.FI-Swaps-orange?style=for-the-badge" />
 </p>
@@ -34,7 +33,7 @@ Even when execution succeeds, there is **no on-chain record of agent performance
 
 **UNIT collapses this entire workflow into a single natural language prompt.**
 
-Type what you want. UNIT's AI agent researches live yield data via MCP tools, formulates a multi-step execution plan, and presents it for your review. One click executes the entire pipeline — approvals, swaps, and deposits — through smart contract wallets with deterministic gas and no seed phrase management.
+Type what you want. UNIT's AI agent researches live yield data via 17 local tools across 7 modules, formulates a multi-step execution plan, and presents it for your review. One click executes the entire pipeline — approvals, swaps, and deposits — through smart contract wallets with deterministic gas and no seed phrase management.
 
 **Every execution is immutably recorded on-chain via [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) Autonomous Agent Reputation.** Each step (approve, swap, deposit) is scored 100 for success or 0 for failure by a validator wallet and written to the ReputationRegistry smart contract. Anyone can query an agent's on-chain track record — total executions, average score, per-step breakdown — creating a transparent, verifiable reputation layer for autonomous agents.
 
@@ -57,41 +56,29 @@ Type what you want. UNIT's AI agent researches live yield data via MCP tools, fo
 │                                                                   │
 │  ┌─────────────┐   ┌──────────────┐   ┌───────────────────────┐  │
 │  │  agent.ts   │──▶│    index.ts  │──▶│     txBuilder.ts      │  │
-│  │ (System     │   │ (MCP Client) │   │ (viem calldata encoder│  │
-│  │  Prompt)    │   │              │   │  · ERC20 · ERC4626    │  │
-│  └─────────────┘   └──────┬───────┘   │  · Lending Pool       │  │
-│                           │           │  · cToken · LiFi)     │  │
+│  │ (System     │   │ (MCPClient   │   │ (viem calldata encoder│  │
+│  │  Prompt)    │   │  + 17 local  │   │  · ERC20 · ERC4626    │  │
+│  └─────────────┘   │  tools)      │   │  · Lending Pool       │  │
+│                    └──────┬───────┘   │  · cToken · LiFi)     │  │
 │                           │           └───────────────────────┘  │
 └───────────────────────────┼───────────────────────────────────────┘
                             │
-            ┌───────────────┼───────────────┐
-            ▼               ▼               ▼
-┌───────────────────┐ ┌──────────┐ ┌──────────────┐
-│   LI.FI MCP       │ │ DefiYield│ │ CoinGecko    │
-│   (Cross-chain    │ │ MCP      │ │ MCP          │
-│    Swap Quotes)   │ │ (Defi-   │ │ (Prices)     │
-│                   │ │  Llama)  │ │              │
-└───────────────────┘ └──────────┘ └──────────────┘
-┌──────────────┐ ┌────────────────┐ ┌──────────────┐
-│ CCXT MCP     │ │ Hive Sentiment│ │ Philidor     │
-│ (CEX Prices) │ │ (Market Mood) │ │ (Vault Risk) │
-└──────────────┘ └────────────────┘ └──────────────┘
-                            │
                             ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│                      EXECUTION LAYER                              │
+│                      EXECUTION LAYER                               │
 │                    Circle W3S Smart Contract Wallets               │
 │                                                                   │
-│  ┌─────────────────────┐    ┌──────────────────────────────┐     │
-│  │  sendTransaction    │    │  sendBatchTransaction         │     │
-│  │  (Single Step via   │    │  (Atomic Multi-Step via      │     │
-│  │   callData)         │    │   executeBatch callData)     │     │
-│  └──────────┬──────────┘    └──────────────┬───────────────┘     │
-│             │                              │                      │
-│             ▼                              ▼                      │
-│    ┌────────────────────────────────────────────┐                │
-│    │     Circle W3S UserOp with `feeLevel`      │                │
-│    │     · Bundler · EntryPoint · Paymaster     │                │
+│  ┌──────────────────────┐      ┌──────────────────────────────┐  │
+│  │  /api/circle/passkey │      │  /api/circle/social          │  │
+│  │  Developer-controlled│      │  User-controlled             │  │
+│  │  (entitySecret auth) │      │  (challenge-based auth)      │  │
+│  └──────────┬───────────┘      └──────────────┬───────────────┘  │
+│             │                                  │                  │
+│             └──────────┬───────────────────────┘                  │
+│                        ▼                                         │
+│    ┌────────────────────────────────────────────┐                ││
+│    │     Circle W3S contractExecution API        │                │
+│    │     · feeLevel · callData · entitySecret    │                │
 │    └──────────────────┬─────────────────────────┘                │
 │                       │                                          │
 │                       ▼                                          │
@@ -125,29 +112,27 @@ sequenceDiagram
     actor U as User
     participant FE as Frontend
     participant BE as Backend AI
-    participant MCP as MCP Tools
+    participant Data as Data APIs
     participant Circle as Circle W3S
     participant Chain as Blockchain
     participant Rep as ERC-8004 Registry
 
     U->>FE: "Best safe yield for 1000 USDC on Base"
     FE->>BE: POST /v1/begin
-    BE->>MCP: Get top yields, lending rates, vault risks
-    MCP-->>BE: APY/TVL/Risk data
+    BE->>Data: fetch top yields, lending rates, vault risks
+    Data-->>BE: APY/TVL/Risk data
     BE->>BE: AI formulates strategy plan
     BE->>BE: Resolve addresses, encode calldata
     BE-->>FE: { strategy, steps, allocations }
     FE->>U: Display strategy cards + execution steps
-    U->>FE: Click "Execute" (Parallel or Batch)
-    FE->>Circle: createTransactionChallenge / createBatch
-    Circle-->>FE: challengeId
-    FE->>Circle: executeChallengeById (poll)
-    Circle-->>FE: UserOp accepted
+    U->>FE: Click "Execute"
+    FE->>Circle: POST /api/circle/passkey { sendTransaction }
+    Circle-->>FE: { txHash, status }
     Chain-->>Circle: Transaction confirmed
     Circle-->>FE: { txHash, status }
     FE->>Rep: recordExecutionResult (fire-and-forget)
     Rep->>Rep: giveFeedback(agentId, score, tag)
-    FE->>U: "✅ 3/3 steps confirmed"
+    FE->>U: "✅ steps confirmed"
 ```
 
 ---
@@ -157,7 +142,7 @@ sequenceDiagram
 ### 🤖 AI-Powered Strategy Generation
 - **Natural language understanding** — describe goals in plain English, not Solidity
 - **Multi-protocol routing** — the AI evaluates Morpho, Aave, Yearn, Compound, Euler, Spark and selects the optimal path
-- **Live data, not hallucinations** — MCP servers feed real-time APY, TVL, and risk scores into every decision
+- **Live data, not hallucinations** — 17 local tools (DefiLlama, CoinGecko, LI.FI, Philidor, Hive, CCXT) feed real-time APY, TVL, prices, and risk scores into every decision
 - **Risk-aware allocation** — splits capital across vault, lending, and speculation buckets based on your risk profile
 
 ### 🔗 Cross-Chain Infrastructure (LI.FI)
@@ -166,11 +151,13 @@ sequenceDiagram
 - **Token-agnostic** — deposit ETH, get USDC; swap USDC, get EURC; the engine handles it
 
 ### 💼 Smart Contract Wallets (Circle W3S)
-- **No seed phrases** — social login (Google OAuth) creates a Programmable Wallet via Circle
+- **Two wallet types**: Passkey (developer-controlled, `/api/circle/passkey`) and Social (user-controlled, `/api/circle/social`)
+- **No seed phrases** — passkey via WebAuthn biometrics, or Google OAuth social login
+- **Passkey**: WebAuthn credential on device → derives keccak256 Ethereum address → creates developer-controlled Circle wallet (no user challenge prompts for execution)
+- **Social**: Google OAuth → Circle user-controlled wallet with challenge-based execution (PIN/biometric prompt per tx)
+- **Passkey recovery**: `credentialId → walletId` mapping stored server-side survives localStorage clears
 - **Gas abstraction** — `feeLevel: "MEDIUM"` handles fee estimation automatically
-- **Deterministic execution** — Circle's bundler + EntryPoint + Paymaster infrastructure ensures reliable transaction submission
 - **Batch atomicity** — multi-step pipelines execute as a single `executeBatch` user operation
-- **Parallel creation** — individual steps created in parallel and executed sequentially for maximum flexibility
 
 ### 📊 Premium Real-Time UI
 - **Glassmorphic dark theme** — premium aesthetic with frosted glass effects, subtle animations, and responsive design
@@ -202,16 +189,13 @@ sequenceDiagram
 | **Charts** | Recharts | Yield comparisons, allocation pie charts |
 | **State** | Zustand | Global state management |
 | **Data** | TanStack React Query | Server state, caching |
-| **Wallet** | Circle W3S + Modular Wallets SDK | Social login, SCA wallets, gas abstraction |
+| **Wallet** | Circle W3S Developer-Controlled + User-Controlled APIs | Passkey (WebAuthn) + Social (Google OAuth), SCA wallets, gas abstraction |
 | **Blockchain** | viem | Type-safe contract interactions, calldata encoding |
-| **Backend** | Express.js + Node.js TypeScript | REST API, MCP client orchestration |
+| **Backend** | Express.js + Node.js TypeScript | REST API, MCPClient tool-calling infrastructure |
 | **AI** | OpenAI Responses API | Natural language → structured execution plans |
-| **MCP** | Model Context Protocol | Standardized tool interface for AI agents |
-| **Yield Data** | Python MCP Server (DefiLlama) | Real-time APY, TVL, pool risk metrics |
+| **MCP** | Model Context Protocol | Tool-calling framework via local `addLocalTools` modules |
+| **DeFi Data** | DefiLlama + CoinGecko + CCXT + Philidor + Hive | 17 tools across 7 modules |
 | **Swaps** | LI.FI API | Cross-chain DEX aggregation, quotes |
-| **Prices** | CoinGecko + CCXT | Token prices, CEX data |
-| **Sentiment** | Hive API | Market mood analysis |
-| **Vault Risk** | Philidor | Vault risk scoring |
 | **On-Chain Reputation** | ERC-8004 / ERC-8005 | Agent identity registry, reputation recording, validation |
 
 ---
@@ -242,7 +226,9 @@ UNIT/
 │   │   ├── layout.tsx                 # Root layout (dark mode, fonts)
 │   │   ├── page.tsx                   # Landing page (hero, features, CTA)
 │   │   ├── app/page.tsx              # Dashboard (chat + execution UI)
-│   │   └── api/circle/social/        # Circle W3S API route handlers
+│   │   └── api/
+│   │       ├── circle/passkey/       # Developer-controlled wallet API (entitySecret auth)
+│   │       └── circle/social/        # User-controlled wallet API (challenge-based auth)
 │   ├── components/
 │   │   ├── ai/                        # Chat, message, strategy components
 │   │   ├── home/                      # Landing page sections
@@ -252,9 +238,9 @@ UNIT/
 │   │   └── providers.tsx             # React Query, Wagmi, Theme providers
 │   ├── hooks/
 │   │   ├── use-chat.ts               # Chat interaction logic
-│   │   ├── use-execution.ts          # Transaction execution state machine
-│   │   ├── use-circle-social-wallet.ts  # Circle W3S wallet integration
-│   │   ├── use-circle-wallet.ts      # Circle developer wallet integration
+│   │   ├── use-execution.ts          # Transaction execution (branches on walletType)
+│   │   ├── use-circle-social-wallet.ts  # Social wallet: Google OAuth + challenge flow
+│   │   ├── use-circle-wallet.ts      # Passkey wallet: WebAuthn + developer-controlled API
 │   │   └── use-theme.tsx             # Theme context provider
 │   ├── lib/
 │   │   ├── types.ts                  # All TypeScript types & interfaces
@@ -268,7 +254,7 @@ UNIT/
 │
 ├── backend/                           # AI Orchestration Server
 │   ├── server.ts                      # Express API (POST /v1/begin)
-│   ├── index.ts                       # MCP Client + OpenAI integration
+│   ├── index.ts                       # MCPClient + 17 local tool modules + OpenAI
 │   ├── agent.ts                       # AI system prompt
 │   ├── txBuilder.ts                   # viem-based calldata encoder
 │   ├── server.test.ts                 # API endpoint tests
@@ -277,11 +263,7 @@ UNIT/
 │   ├── generateEntitySecret.ts       # Entity secret generation
 │   └── package.json
 │
-└── defi-yield-mcp/                    # Python DeFi Yield Server
-    ├── src/defi_yield_mcp/
-    │   └── server.py                  # FastMCP server (4 tools)
-    ├── pyproject.toml
-    └── README.md
+└── defi-yield-mcp/                    # *(legacy)* Python DeFi Yield Server (not used)
 ```
 
 ---
@@ -294,17 +276,17 @@ UNIT/
 ```
 
 ### 2. AI Research Phase
-The backend connects to **7 MCP servers** simultaneously to gather data:
+The backend calls 17 tools across 7 local modules (registered via `MCPClient.addLocalTools`) to gather data:
 
-| MCP Server | Data Fetched |
-|-----------|-------------|
-| DefiYield | Top 10 yields by APY across all chains |
-| DefiBorrow | Lending/borrow rates for USDC |
-| LI.FI | Cross-chain swap quotes (if bridging needed) |
-| CoinGecko | Current token prices, trending coins |
-| CCXT | CEX price spreads |
-| Hive Sentiment | Market mood score |
-| Philidor | Vault risk ratings |
+| Data Source | Tools |
+|-----------|-------|
+| **DefiYield** (DefiLlama) | `get_top_yields`, `get_pool_risk`, `compare_yields`, `get_chains` |
+| **DefiBorrow** (DefiLlama) | `find_best_yield`, `get_lending_rates`, `get_earn_markets`, `get_alpha_signals`, `get_whale_activity` |
+| **LI.FI** | `get-quote`, `get-token`, `get-chains` |
+| **CoinGecko** | `execute` (price queries, trending, search) |
+| **Philidor** | `search_vaults`, `get_vault_risk_breakdown`, `compare_vaults`, `find_safest_vaults` |
+| **CCXT** | `fetchTicker` (CEX price feeds) |
+| **Hive** | `get_market_sentiment` |
 
 ### 3. Strategy Formulation
 The AI agent, guided by the system prompt in `agent.ts`, evaluates the data and produces a structured JSON response:
@@ -387,8 +369,6 @@ After execution completes, UNIT automatically records the outcome on-chain:
 | Dependency | Version | Purpose |
 |-----------|---------|---------|
 | Node.js | v18+ | Frontend + Backend runtime |
-| Python | v3.10+ | DeFi Yield MCP server |
-| pnpm or npm | latest | Package management |
 | Circle W3S Account | — | Smart contract wallet infrastructure |
 
 ### 1. Clone & Install
@@ -402,13 +382,6 @@ cd frontend && npm install && cd ..
 
 # Install backend dependencies
 cd backend && npm install && cd ..
-
-# Install Python MCP server
-cd defi-yield-mcp
-python3 -m venv venv
-source venv/bin/activate
-pip install -e .
-cd ..
 ```
 
 ### 2. Environment Configuration
@@ -448,7 +421,7 @@ AI_MODEL="openai/gpt-oss-120b:free"
 CIRCLE_API_KEY=TEST_API_KEY:your_api_key
 CIRCLE_ENTITY_SECRET=your_entity_secret
 
-# MCP API Keys
+# Data API Keys
 LIFI_API_KEY=your_lifi_key
 HIVE_API_KEY=hive_live_your_key
 COINDESK_API_KEY=your_coindesk_key
@@ -460,21 +433,16 @@ AI_MAX_ITERATIONS=25
 ### 3. Run
 
 ```bash
-# Terminal 1: DeFi Yield MCP
-cd defi-yield-mcp
-source venv/bin/activate
-python -m defi_yield_mcp
-
-# Terminal 2: Backend
+# Terminal 1: Backend
 cd backend
 npm run build && node build/index.js
 
-# Terminal 3: Frontend
+# Terminal 2: Frontend
 cd frontend
 npm run dev
 ```
 
-Open **http://localhost:3000** → Connect with Google → Type a DeFi prompt → Execute.
+Open **http://localhost:3000** → Connect with Passkey or Google → Type a DeFi prompt → Execute.
 
 ---
 
@@ -484,17 +452,17 @@ Open **http://localhost:3000** → Connect with Google → Type a DeFi prompt �
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `NEXT_PUBLIC_CIRCLE_APP_ID` | ✅ | Circle W3S application identifier |
-| `NEXT_PUBLIC_CIRCLE_CLIENT_URL` | ✅ | Circle W3S SDK RPC endpoint |
-| `NEXT_PUBLIC_CIRCLE_CLIENT_KEY` | ✅ | Circle W3S client key (starts with `TEST_CLIENT_KEY:` or `LIVE_CLIENT_KEY:`) |
+| `NEXT_PUBLIC_CIRCLE_APP_ID` | ✅ | Circle W3S application identifier (social wallet) |
+| `NEXT_PUBLIC_CIRCLE_CLIENT_URL` | ✅ | Circle W3S SDK RPC endpoint (passkey wallet) |
+| `NEXT_PUBLIC_CIRCLE_CLIENT_KEY` | ✅ | Circle W3S client key for passkey (starts with `TEST_CLIENT_KEY:` or `LIVE_CLIENT_KEY:`) |
 | `CIRCLE_API_KEY` | ✅ | Circle API key for server-side calls |
-| `CIRCLE_ENTITY_SECRET` | ✅ | Circle entity secret (used server-side) |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | ✅ | Google OAuth client ID for social login |
+| `CIRCLE_ENTITY_SECRET` | ✅ | Circle entity secret (used server-side for developer-controlled wallets) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | * | Google OAuth client ID (required for social wallet) |
 | `NEXT_PUBLIC_API_URL` | ✅ | Backend API base URL (default: `http://localhost:3001`) |
 | `ERC8004_AGENT_ID` | * | ERC-8004 agent NFT ID for reputation recording |
 | `ERC8004_VALIDATOR_WALLET_ID` | * | Circle dev wallet ID that submits on-chain reputation |
 | `ARC_RPC_URL` | * | Arc testnet RPC endpoint |
-| `NEXT_PUBLIC_WALLETCONNECT_ID` | — | WalletConnect project ID (EOA fallback) |
+| `NEXT_PUBLIC_WALLETCONNECT_ID` | — | WalletConnect project ID (EOA fallback, unused) |
 
 ### Backend
 
@@ -588,53 +556,96 @@ This creates a wallet set, registers the agent, resolves the agent ID, and outpu
 
 ### How Wallets Are Created
 
+#### Passkey Wallet (developer-controlled)
+
 ```
-User clicks "Sign in with Google"
+User clicks "Register" or "Login with Passkey"
         │
         ▼
-Circle W3S SDK initializes with App ID + Client Key
+WebAuthn nativgator.credentials.create() / .get()
+  → RP ID overridden to origin hostname (bypasses Circle's localhost default)
+  → pubKeyCredParams injected (-7 ES256 required, Circle omits it)
+  → Circle getRegistrationVerification / getLoginVerification skipped
         │
         ▼
-Google OAuth flow → idToken returned
+Passkey credential (id, publicKey/assertion) returned
         │
         ▼
-createUserPinWithTokenChallenge → user sets 6-digit PIN
+On registration: keccak256(uncompressed public key) → Ethereum address
         │
         ▼
-createUserWithTokenChallenge → wallet created on Circle's infrastructure
+POST /api/circle/passkey { action: "setupWallet", credentialId }
+  → Creates wallet set + wallet on Circle developer entity
+  → credentialId → walletId mapping stored server-side
+  → walletId + address persisted to localStorage
         │
         ▼
-Wallet address generated on the selected chain
+User connected — wallet identified by walletId from Circle API
+```
+
+#### Social Wallet (user-controlled)
+
+```
+User clicks "Connect with Google"
+        │
+        ▼
+createDeviceToken → POST /api/circle/social { action: "createDeviceToken" }
+  → Device-bound session token stored in cookies
+        │
+        ▼
+sdk.performLogin(GOOGLE) → Google OAuth redirect
+  → onLoginComplete fires with userToken + encryptionKey
+        │
+        ▼
+Auto-initialize: POST /api/circle/social { action: "initializeUser" }
+  → Returns challengeId (or 155106 if already initialized)
+        │
+        ▼
+sdk.execute(challengeId) → Circle PIN/biometric challenge
+  → Wallet created on Circle infrastructure
+        │
+        ▼
+loadWalletsFn → wallets loaded, address available
 ```
 
 ### How Transactions Work
 
-1. **Challenge-based model** — every transaction starts as a "challenge" that must be "executed"
-2. **User operations** — Circle submits ERC-4337 UserOps to the blockchain via its bundler infrastructure
-3. **Gas abstraction** — `feeLevel: "MEDIUM"` lets Circle estimate and pay gas automatically (no `gasLimit`/`maxFee`/`priorityFee` parameters)
-4. **Execution polling** — the frontend polls `GET /v1/transactions/{challengeId}` every 500ms until the status is `CONFIRMED` or `FAILED`
-
-### The `callData` Approach
-
-Standard Circle integration uses `abiFunctionSignature` + `abiParameters` to describe contract calls. This breaks for complex calldata (e.g., LI.FI swap payloads) because Circle's estimator can't decode nested ABI paths.
-
-**UNIT's solution:** bypass ABI estimation entirely by passing raw pre-encoded bytes via the `callData` field (mutually exclusive with `abiFunctionSignature`/`abiParameters` per the Circle API spec). This allows any arbitrary contract call — including LI.FI router interactions and `executeBatch` multi-calls — to work through the same infrastructure.
+1. **Wallet type determines execution path**:
+   - **Passkey (developer-controlled)** — `/api/circle/passkey` calls Circle's `POST /v1/w3s/developer/transactions/contractExecution` directly with `entitySecretCiphertext` auth. No user challenge prompt — fully automated execution.
+   - **Social (user-controlled)** — challenge-based model: every transaction starts as a "challenge" (via `/api/circle/social`) that must be "executed" via the W3SSdk PIN/biometric prompt.
+2. **`callData` approach** — bypasses Circle's ABI estimation by passing raw pre-encoded bytes via the `callData` field (mutually exclusive with `abiFunctionSignature`/`abiParameters`). Required for LI.FI swap payloads and `executeBatch` multi-calls.
+3. **Batch execution** — multi-step pipelines are encoded as a single `executeBatch` call via `encodeFunctionData`, sent as one `contractExecution` transaction with `callData`.
+4. **Gas abstraction** — `feeLevel: "MEDIUM"` lets Circle estimate and pay gas automatically (no `gasLimit`/`maxFee`/`priorityFee` parameters). Explicit gas params or `feeLevel` alone are accepted, not both (Circle error `[2]`/`[155232]`).
 
 ---
 
-## MCP Server Ecosystem
+## AI Tools (local modules via MCPClient infrastructure)
 
-| Server | Protocol | Purpose | Tools Provided |
-|--------|----------|---------|---------------|
-| **LI.FI** | HTTP (MCP) | Cross-chain swap quotes | `get-quote`, `get-token`, `get-chains` |
-| **DefiYield** | Python STDIO | DeFi pool data | `get_top_yields`, `get_pool_risk`, `compare_yields`, `get_chains` |
-| **DefiBorrow** | HTTP (MCP) | Lending/borrow rates | `get_lending_rates`, `get_earn_markets`, `get_borrow_markets` |
-| **CoinGecko** | HTTP (MCP) | Token prices | Token price queries, trending search |
-| **CCXT** | Node STDIO | CEX market data | Price feeds from centralized exchanges |
-| **Hive Sentiment** | HTTP (MCP) | Market sentiment | Sentiment scores, market mood analysis |
-| **Philidor** | HTTP (MCP) | Vault risk | Vault risk scoring, safety analysis |
+The backend registers 17 tools across 7 local modules via `MCPClient.addLocalTools()` in `server.ts`. Each tool is a TypeScript function that calls an external API — no subprocesses, no external MCP server connections.
 
-All MCP servers are connected in `backend/index.ts` via `StreamableHTTPClientTransport` or `StdioClientTransport`. The `MCPClient` class discovers available tools from each server and exposes them to the AI agent.
+| Module | Tool | Source | Description |
+|--------|------|--------|-------------|
+| **defi-yield** | `get_top_yields` | DefiLlama | Top 10 yields by APY |
+| | `get_pool_risk` | DefiLlama | Risk score for a pool |
+| | `compare_yields` | DefiLlama | Compare yields across protocols |
+| | `get_chains` | DefiLlama | Supported chains |
+| **lifi** | `get-quote` | LI.FI API | Best cross-chain swap route |
+| | `get-token` | LI.FI API | Token info by address |
+| | `get-chains` | LI.FI API | Supported chains |
+| **defiborrow** | `find_best_yield` | DefiLlama | Best lending yields |
+| | `get_lending_rates` | DefiLlama | Lending/borrow rate data |
+| | `get_earn_markets` | DefiLlama | Earn market details |
+| | `get_alpha_signals` | DefiLlama | Trending pool signals |
+| | `get_whale_activity` | DefiLlama | Large transaction activity |
+| **coingecko** | `execute` | CoinGecko API | Token prices, search, trending |
+| **philidor** | `search_vaults` | Philidor API | Vault search |
+| | `get_vault_risk_breakdown` | Philidor API | Detailed vault risk |
+| | `compare_vaults` | Philidor API | Compare vault risk scores |
+| | `find_safest_vaults` | Philidor API | Safest vault recommendations |
+| **ccxt** | `fetchTicker` | CCXT | CEX price feed |
+| **hive** | `get_market_sentiment` | Hive API | Market mood analysis |
+
+All tools are registered as OpenAI `function` definitions and called via `openai.responses.create()` with the `tools` parameter. The `MCPClient` class routes each function call to the correct local handler module.
 
 ---
 
@@ -660,16 +671,17 @@ npx tsc --noEmit
 - [Tailwind CSS v4](https://tailwindcss.com/) — Utility-first CSS
 - [Framer Motion](https://www.framer.com/motion/) — Animation library
 - [shadcn/ui](https://ui.shadcn.com/) — Accessible component primitives
-- [Circle W3S](https://developers.circle.com/w3s/) — Programmable Wallets SDK
+- [Circle W3S](https://developers.circle.com/w3s/) — Programmable Wallets (Developer + User-Controlled APIs)
+- [WebAuthn](https://www.w3.org/TR/webauthn-3/) — Passkey authentication standard
 - [viem](https://viem.sh/) — TypeScript Ethereum library
 - [Zustand](https://github.com/pmndrs/zustand) — State management
 - [TanStack Query](https://tanstack.com/query) — Server state management
 - [LI.FI](https://li.fi/) — Cross-chain swap infrastructure
-- [OpenAI API](https://openai.com/) — AI language model
-- [MCP](https://modelcontextprotocol.io/) — Model Context Protocol
 - [DefiLlama](https://defillama.com/) — DeFi yield data
+- [CoinGecko](https://www.coingecko.com/) — Token prices
+- [OpenAI API](https://openai.com/) — AI language model (`openai.responses.create()`)
+- [MCP](https://modelcontextprotocol.io/) — Model Context Protocol (tool-calling infrastructure)
 - [Recharts](https://recharts.org/) — Charting library
-- [Recharts](https://recharts.org/) — Charting
 
 ---
 
