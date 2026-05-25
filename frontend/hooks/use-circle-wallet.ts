@@ -225,15 +225,12 @@ export function useCircleWallet() {
 
       const passkeyAddress = credential.publicKey ?? `0x${credential.id.slice(0, 40)}`;
 
-      // Get or create a Circle W3S wallet for this passkey user
+      // Always fetch or create a Circle W3S wallet — locally-derived address
+      // never matches the real Circle W3S wallet on-chain address.
       let walletId = state.walletId;
       let finalAddress = state.address ?? passkeyAddress;
 
-      // If the stored address is invalid (credential ID fallback with non-hex chars),
-      // fetch the real Circle wallet address
-      const isInvalidAddress = !/^0x[a-fA-F0-9]{40}$/.test(finalAddress);
-
-      if (isRegister || isInvalidAddress) {
+      {
         const stored = loadStoredPasskeys();
         const existing = stored[credential.id];
         if (existing?.walletId && existing?.address && /^0x[a-fA-F0-9]{40}$/.test(existing.address)) {
@@ -241,7 +238,7 @@ export function useCircleWallet() {
           finalAddress = existing.address;
         } else {
           try {
-            // If we already have a walletId (but stale address), try getWallet first
+            // If we have a walletId (but stale address), try getWallet first
             if (state.walletId && !isRegister) {
               const getRes = await fetch("/api/circle/passkey", {
                 method: "POST",
@@ -267,10 +264,9 @@ export function useCircleWallet() {
                 if (credential.publicKey) {
                   saveStoredPasskey(credential.id, { publicKey: credential.publicKey, address: finalAddress, walletId: walletId ?? "" });
                 }
-                return; // skip the rest of connectPasskey
+                return;
               }
             }
-            // Fall back to creating a new wallet
             const res = await fetch("/api/circle/passkey", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -332,17 +328,16 @@ export function useCircleWallet() {
     setWallet(state.address, state.address ? "passkey" : null);
   }, [state.address, setWallet]);
 
-  // Fix invalid stored addresses on mount — old credential-ID fallback
-  // addresses have non-hex chars. Fetch the real Circle wallet address.
+  // Fix stale passkey address on mount — always fetch the real wallet address
+  // from Circle if we have a walletId. The locally-derived address is never
+  // the same as the Circle W3S wallet address.
   useEffect(() => {
-    const isInvalid = state.address && !/^0x[a-fA-F0-9]{40}$/.test(state.address);
-    if (!isInvalid) return;
+    if (!state.walletId && !state.credentialId) return;
     (async () => {
       try {
         let address: string | undefined;
         let wId: string | undefined;
 
-        // If we have a walletId, try getWallet first (doesn't create a new wallet)
         if (state.walletId) {
           const res = await fetch("/api/circle/passkey", {
             method: "POST",
@@ -356,8 +351,7 @@ export function useCircleWallet() {
           }
         }
 
-        // Fall back to creating a new wallet
-        if (!address) {
+        if (!address && state.credentialId) {
           const res = await fetch("/api/circle/passkey", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -383,7 +377,7 @@ export function useCircleWallet() {
           }
         }
       } catch (e) {
-        console.warn("Failed to fix stale passkey address:", e);
+        console.warn("Failed to fetch passkey wallet address:", e);
       }
     })();
   }, []); // run once on mount
