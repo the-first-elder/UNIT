@@ -241,6 +241,36 @@ export function useCircleWallet() {
           finalAddress = existing.address;
         } else {
           try {
+            // If we already have a walletId (but stale address), try getWallet first
+            if (state.walletId && !isRegister) {
+              const getRes = await fetch("/api/circle/passkey", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "getWallet", walletId: state.walletId }),
+              });
+              const getData = await getRes.json();
+              if (getRes.ok && getData.address) {
+                walletId = getData.walletId;
+                finalAddress = getData.address;
+                // Save and continue
+                setState({
+                  isConnected: true,
+                  address: finalAddress,
+                  isRegistering: false,
+                  isLoggingIn: false,
+                  error: null,
+                  walletType: "circle-passkey",
+                  credentialId: credential.id,
+                  publicKey: finalAddress,
+                  walletId,
+                });
+                if (credential.publicKey) {
+                  saveStoredPasskey(credential.id, { publicKey: credential.publicKey, address: finalAddress, walletId: walletId ?? "" });
+                }
+                return; // skip the rest of connectPasskey
+              }
+            }
+            // Fall back to creating a new wallet
             const res = await fetch("/api/circle/passkey", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -303,12 +333,31 @@ export function useCircleWallet() {
   }, [state.address, setWallet]);
 
   // Fix invalid stored addresses on mount — old credential-ID fallback
-  // addresses have non-hex chars. Fetch or create a Circle wallet to get the real address.
+  // addresses have non-hex chars. Fetch the real Circle wallet address.
   useEffect(() => {
     const isInvalid = state.address && !/^0x[a-fA-F0-9]{40}$/.test(state.address);
-    if (isInvalid) {
-      (async () => {
-        try {
+    if (!isInvalid) return;
+    (async () => {
+      try {
+        let address: string | undefined;
+        let wId: string | undefined;
+
+        // If we have a walletId, try getWallet first (doesn't create a new wallet)
+        if (state.walletId) {
+          const res = await fetch("/api/circle/passkey", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "getWallet", walletId: state.walletId }),
+          });
+          const data = await res.json();
+          if (res.ok && data.address) {
+            address = data.address;
+            wId = data.walletId;
+          }
+        }
+
+        // Fall back to creating a new wallet
+        if (!address) {
           const res = await fetch("/api/circle/passkey", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -316,23 +365,27 @@ export function useCircleWallet() {
           });
           const data = await res.json();
           if (res.ok && data.walletId && data.address) {
-            setState((s) => ({ ...s, address: data.address, publicKey: data.address, walletId: data.walletId }));
-            // Update all stored entries for this credential (match by any walletId or credentialId)
-            const stored = loadStoredPasskeys();
-            const storedCredId = Object.entries(stored).find(
-              ([, e]) => e.walletId === state.walletId || e.address === state.address,
-            )?.[0];
-            if (storedCredId) {
-              saveStoredPasskey(storedCredId, { ...stored[storedCredId], address: data.address, walletId: data.walletId ?? "" });
-            } else if (state.credentialId) {
-              saveStoredPasskey(state.credentialId, { publicKey: data.address, address: data.address, walletId: data.walletId ?? "" });
-            }
+            address = data.address;
+            wId = data.walletId;
           }
-        } catch (e) {
-          console.warn("Failed to fix stale passkey address:", e);
         }
-      })();
-    }
+
+        if (address && wId) {
+          setState((s) => ({ ...s, address, publicKey: address, walletId: wId }));
+          const stored = loadStoredPasskeys();
+          const storedCredId = Object.entries(stored).find(
+            ([, e]) => e.walletId === state.walletId || e.address === state.address,
+          )?.[0];
+          if (storedCredId) {
+            saveStoredPasskey(storedCredId, { ...stored[storedCredId], address, walletId: wId });
+          } else if (state.credentialId) {
+            saveStoredPasskey(state.credentialId, { publicKey: address, address, walletId: wId });
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to fix stale passkey address:", e);
+      }
+    })();
   }, []); // run once on mount
 
   const disconnect = useCallback(() => {

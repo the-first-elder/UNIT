@@ -218,6 +218,15 @@ export async function POST(request: Request) {
         return NextResponse.json(data.data);
       }
 
+      case "getWallet": {
+        const { walletId } = params;
+        if (!walletId) return NextResponse.json({ error: "walletId required" }, { status: 400 });
+        const data: any = await circleFetch("GET", `/wallets/${walletId}`);
+        const wallet = data.data?.wallet;
+        if (!wallet) return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
+        return NextResponse.json({ walletId: wallet.id, address: wallet.address, blockchain: wallet.blockchain });
+      }
+
       default:
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
