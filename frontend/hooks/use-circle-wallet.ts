@@ -223,18 +223,18 @@ export function useCircleWallet() {
         ? await registerCredential(`unit-user-${Date.now()}`)
         : await loginCredential(state.credentialId ?? undefined, state.publicKey);
 
-      const finalAddress = credential.publicKey ?? `0x${credential.id.slice(0, 40)}`;
+      const passkeyAddress = credential.publicKey ?? `0x${credential.id.slice(0, 40)}`;
 
       // Get or create a Circle W3S wallet for this passkey user
       let walletId = state.walletId;
+      let finalAddress = state.address ?? passkeyAddress;
       if (isRegister) {
-        // Check if we already have a wallet stored for this credential
         const stored = loadStoredPasskeys();
         const existing = stored[credential.id];
         if (existing?.walletId) {
           walletId = existing.walletId;
+          finalAddress = existing.address;
         } else {
-          // Create a new developer-controlled wallet via Circle
           try {
             const res = await fetch("/api/circle/passkey", {
               method: "POST",
@@ -244,11 +244,14 @@ export function useCircleWallet() {
             const data = await res.json();
             if (res.ok && data.walletId) {
               walletId = data.walletId;
+              finalAddress = data.address;
             } else {
               console.warn("Failed to create passkey wallet:", data.error);
+              finalAddress = passkeyAddress;
             }
           } catch (e) {
             console.warn("Error creating passkey wallet:", e);
+            finalAddress = passkeyAddress;
           }
         }
       }
