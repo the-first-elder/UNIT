@@ -58,6 +58,7 @@ interface CircleWalletState {
   walletType: WalletType | null;
   credentialId: string | null;
   publicKey: string | null;
+  walletId: string | null;
 }
 
 interface WebAuthnCredential {
@@ -72,6 +73,7 @@ const PASSKEY_STORE_KEY = "unit-passkeys";
 interface StoredPasskey {
   publicKey: string;
   address: string;
+  walletId: string;
 }
 
 function loadStoredPasskeys(): Record<string, StoredPasskey> {
@@ -105,6 +107,7 @@ export function useCircleWallet() {
         walletType: "circle-passkey" as const,
         credentialId,
         publicKey: data.publicKey,
+        walletId: data.walletId,
       };
     }
     return {
@@ -116,6 +119,7 @@ export function useCircleWallet() {
       walletType: null,
       credentialId: null,
       publicKey: null,
+      walletId: null,
     };
   });
 
@@ -221,6 +225,34 @@ export function useCircleWallet() {
 
       const finalAddress = credential.publicKey ?? `0x${credential.id.slice(0, 40)}`;
 
+      // Get or create a Circle W3S wallet for this passkey user
+      let walletId = state.walletId;
+      if (isRegister) {
+        // Check if we already have a wallet stored for this credential
+        const stored = loadStoredPasskeys();
+        const existing = stored[credential.id];
+        if (existing?.walletId) {
+          walletId = existing.walletId;
+        } else {
+          // Create a new developer-controlled wallet via Circle
+          try {
+            const res = await fetch("/api/circle/passkey", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "setupWallet" }),
+            });
+            const data = await res.json();
+            if (res.ok && data.walletId) {
+              walletId = data.walletId;
+            } else {
+              console.warn("Failed to create passkey wallet:", data.error);
+            }
+          } catch (e) {
+            console.warn("Error creating passkey wallet:", e);
+          }
+        }
+      }
+
       setState({
         isConnected: true,
         address: finalAddress,
@@ -230,10 +262,11 @@ export function useCircleWallet() {
         walletType: "circle-passkey",
         credentialId: credential.id,
         publicKey: finalAddress,
+        walletId,
       });
 
       if (credential.publicKey) {
-        saveStoredPasskey(credential.id, { publicKey: credential.publicKey, address: finalAddress });
+        saveStoredPasskey(credential.id, { publicKey: credential.publicKey, address: finalAddress, walletId: walletId ?? "" });
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : `${String(mode)} failed`;
@@ -272,12 +305,13 @@ export function useCircleWallet() {
     // (it's a separate useState from the one that connected), so React may bail
     // out of the re-render and the useEffect below won't fire.
     setWallet(null, null);
-    // Keep credentialId and publicKey in state + localStorage for re-login.
+    // Keep credentialId, publicKey, walletId in state + localStorage for re-login.
   }, [setWallet]);
 
   return {
     ...state,
     hasConfig,
+    walletId: state.walletId,
     registerWithPasskey,
     loginWithPasskey,
     disconnect,
